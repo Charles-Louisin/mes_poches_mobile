@@ -1,0 +1,426 @@
+Tu es un senior React Native / Expo UI engineer spécialisé dans les applications fintech premium.
+
+Je veux refondre l'interface visuelle de cette application mobile "Mes Poches".
+
+IMPORTANT :
+Ne détruis aucune fonctionnalité existante.
+Ne réécris pas inutilement la logique métier.
+Ne modifie pas les endpoints API, les modèles, l'authentification, les services ou les variables d'environnement sauf nécessité absolue.
+
+OBJECTIF :
+
+Créer une identité visuelle mobile premium inspirée du langage visuel observé dans les références fournies :
+
+- interface très blanche et respirante
+- vert vibrant comme couleur principale
+- cartes fortement arrondies
+- boutons pill
+- typographie moderne
+- hiérarchie visuelle très claire
+- illustrations soft 3D/pastel lorsque pertinentes
+- ombres très légères
+- icônes minimalistes
+- beaucoup d'espace
+- interface fintech moderne
+- esthétique premium mais simple
+- animations subtiles
+
+ATTENTION :
+Il ne faut PAS copier FripCash.
+Ne réutilise aucun logo, texte, illustration, image ou branding de FripCash.
+Reprends uniquement les principes de design et crée une identité originale pour MES POCHES.
+
+==================================================
+1. DESIGN TOKENS
+==================================================
+
+Créer un système centralisé de design tokens.
+
+Couleurs :
+
+primary: #00C853
+primaryDark: #00A944
+primaryLight: #EFFFF5
+primaryVeryLight: #F5FFF8
+
+background: #FFFFFF
+surface: #F8F9FA
+surfaceSecondary: #F2F4F5
+
+text: #111111
+textSecondary: #707070
+textMuted: #9A9A9A
+
+border: #E7E7E7
+
+success: #00C853
+warning: #F5A623
+danger: #F04438
+info: #20B8D5
+
+Utiliser ces tokens partout.
+Ne pas mettre des couleurs arbitraires directement dans les composants.
+
+==================================================
+2. TYPOGRAPHIE
+==================================================
+
+Utiliser une police sans-serif moderne adaptée à React Native/Expo.
+
+Hiérarchie :
+
+Display: 32px / 700
+H1: 28px / 700
+H2: 22px / 700
+H3: 18px / 600
+Body: 16px / 400
+BodyMedium: 16px / 500
+Caption: 14px / 400
+Small: 12px / 400
+
+Les titres doivent être forts et lisibles.
+Les descriptions doivent utiliser un gris moyen.
+
+==================================================
+3. SPACING
+==================================================
+
+Utiliser :
+
+4
+8
+12
+16
+20
+24
+32
+40
+48
+64
+
+Padding horizontal principal des écrans :
+24px.
+
+==================================================
+4. BORDER RADIUS
+==================================================
+
+small: 10
+medium: 14
+card: 20
+largeCard: 24
+button: 28
+pill: 999
+
+==================================================
+5. CARDS
+==================================================
+
+Créer un composant Card réutilisable.
+
+Default :
+
+background: surface
+borderRadius: 20
+padding: 16-20
+
+Les cards doivent être visuellement légères.
+
+Pas de grosses bordures.
+Pas de grosses ombres.
+
+==================================================
+6. BUTTONS
+==================================================
+
+Primary :
+
+height: 54-58
+borderRadius: 28
+background: primary
+text: white
+fontWeight: 600
+
+Secondary :
+
+background: white
+border: primary
+text: primary
+
+Ghost :
+
+transparent
+text: primary
+
+Les boutons principaux doivent généralement occuper la largeur disponible.
+
+==================================================
+7. HOME
+==================================================
+
+Refondre l'écran d'accueil autour du solde.
+
+Créer une BalanceCard premium :
+
+- solde actuel
+- montant principal très visible
+- possibilité d'afficher/masquer le montant
+- informations secondaires utiles
+- actions rapides si elles existent déjà
+
+Le montant principal doit être beaucoup plus visible que les autres textes.
+
+Organiser ensuite :
+
+BalanceCard
+↓
+QuickActions
+↓
+FinancialSummary
+↓
+RecentTransactions
+↓
+BottomNavigation
+
+Ne pas surcharger l'écran.
+
+==================================================
+8. TRANSACTIONS
+==================================================
+
+Créer TransactionItem réutilisable.
+
+Chaque transaction doit afficher :
+
+- icône
+- catégorie ou titre
+- description/date
+- montant
+- statut si nécessaire
+
+Dépenses et revenus doivent être immédiatement différenciables.
+
+Les transactions doivent être regroupées intelligemment par date si cette logique existe déjà.
+
+==================================================
+9. ADD TRANSACTION
+==================================================
+
+L'écran d'ajout doit être extrêmement simple.
+
+Ne jamais demander à l'utilisateur d'entrer son solde.
+
+Le système doit conserver le fonctionnement existant :
+
+revenu => solde augmente
+
+dépense => solde diminue
+
+Créer une UI moderne pour :
+
+- type
+- montant
+- catégorie
+- description
+- date
+- validation
+
+==================================================
+10. EMPTY STATES
+==================================================
+
+Créer un composant EmptyState réutilisable.
+
+Structure :
+
+illustration
+titre
+description
+CTA
+
+Les écrans sans données ne doivent jamais paraître cassés ou vides.
+
+==================================================
+11. IA / SCAN
+==================================================
+
+Créer une UI premium mais discrète pour :
+
+- scan de reçu
+- analyse IA
+- transaction détectée
+- transaction en attente de validation
+
+Une transaction détectée automatiquement doit être clairement présentée comme :
+
+"En attente de validation"
+
+Ne jamais enregistrer définitivement une transaction automatiquement si la logique actuelle exige une validation utilisateur.
+
+==================================================
+12. NAVIGATION
+==================================================
+
+Refondre la bottom navigation.
+
+Style :
+
+fond blanc
+séparation très légère
+icônes simples
+label sous l'icône
+élément actif en primary
+éléments inactifs en gris
+
+Conserver les routes existantes.
+
+==================================================
+13. ICONOGRAPHIE
+==================================================
+
+Utiliser une seule famille d'icônes cohérente.
+
+Éviter de mélanger plusieurs styles.
+
+Icônes arrondies et minimalistes.
+
+Taille standard :
+20-24px.
+
+==================================================
+14. ILLUSTRATIONS
+==================================================
+
+Lorsqu'une illustration est nécessaire :
+
+style soft 3D / pastel / fintech / premium.
+
+Créer des illustrations originales adaptées à Mes Poches.
+
+Ne jamais utiliser les assets FripCash.
+
+==================================================
+15. ANIMATIONS
+==================================================
+
+Animations discrètes :
+
+fade in
+translateY léger
+scale press 0.97
+transitions douces
+
+Pas d'animations excessives.
+
+==================================================
+16. RESPONSIVE
+==================================================
+
+L'application doit fonctionner correctement sur :
+
+petits téléphones
+téléphones standards
+grands téléphones
+
+Ne jamais utiliser de dimensions fixes qui cassent l'interface.
+
+Utiliser :
+
+useWindowDimensions
+flex
+percentage
+SafeAreaView
+ScrollView / FlatList correctement
+
+==================================================
+17. ACCESSIBILITÉ
+==================================================
+
+Respecter :
+
+touch targets suffisamment grands
+contraste correct
+textes lisibles
+accessibilityLabel lorsque nécessaire
+
+==================================================
+18. CODE QUALITY
+==================================================
+
+Avant de modifier le code :
+
+1. analyse toute l'architecture actuelle ;
+2. liste les écrans ;
+3. identifie les composants existants ;
+4. identifie les composants réutilisables ;
+5. identifie les dépendances UI déjà installées ;
+6. réutilise les librairies existantes lorsqu'elles sont adaptées ;
+7. évite d'ajouter des dépendances inutiles.
+
+Créer une architecture propre et maintenable.
+
+Centraliser les design tokens.
+
+Éviter les styles dupliqués.
+
+==================================================
+19. IMPORTANT
+==================================================
+
+Je veux un résultat visuellement très travaillé.
+
+Ne crée pas une interface générique de dashboard.
+
+Le rendu doit avoir une vraie direction artistique :
+
+- blanc
+- vert vibrant
+- arrondis
+- respiration
+- hiérarchie
+- douceur
+- premium
+- fintech
+- simplicité
+
+Chaque écran doit sembler appartenir à la même application.
+
+Ne mets pas du vert partout.
+Le vert doit servir à guider l'utilisateur.
+
+Ne mets pas de gradients partout.
+Ne mets pas de glassmorphism partout.
+Ne mets pas d'ombres lourdes.
+Ne surcharge pas les écrans.
+
+==================================================
+20. MÉTHODE DE TRAVAIL
+==================================================
+
+Commence par analyser le projet sans modifier les fichiers.
+
+Ensuite présente-moi :
+
+1. architecture actuelle ;
+2. écrans détectés ;
+3. composants existants ;
+4. problèmes UI actuels ;
+5. plan de refonte ;
+6. fichiers qui seront modifiés ;
+7. nouveaux composants qui seront créés.
+
+Après cette analyse, implémente la refonte progressivement.
+
+Après chaque grosse étape, vérifie :
+
+- TypeScript
+- navigation
+- imports
+- compilation
+- absence de régression fonctionnelle.
+
+Ne change pas le backend.
+
+Ne supprime aucune fonctionnalité existante.
+
+Le résultat final doit être une application Mes Poches moderne, premium, cohérente et réellement adaptée au mobile. 

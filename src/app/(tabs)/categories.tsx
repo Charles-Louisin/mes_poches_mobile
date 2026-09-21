@@ -1,0 +1,171 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pencil, Trash2 } from 'lucide-react-native';
+import { categoryApi, type Category } from '@/lib/api';
+import { PLAN_LIMITS } from '@/lib/planLimits';
+import { invalidateFinance } from '@/lib/query';
+import { isPremiumRequiredError } from '@/lib/errors';
+import { useAuth } from '@/contexts/auth';
+import { useConfirm } from '@/contexts/confirm';
+import { useToast } from '@/contexts/toast';
+import { useTutorial } from '@/contexts/tutorial';
+import { TutorialTarget } from '@/components/tutorial/tutorial-target';
+import { Button } from '@/components/ui/button';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
+import { Field } from '@/components/ui/field';
+import { ImageUpload } from '@/components/ui/image-upload';
+import { Screen } from '@/components/ui/screen';
+import { ScreenHeader } from '@/components/ui/screen-header';
+import { PressScale } from '@/components/ui/press-scale';
+import { color, type as font } from '@/theme/tokens';
+import { router } from 'expo-router';
+
+export default function CategoriesScreen() {
+  const { isPremium } = useAuth();
+  const { step, afterCategoryCreated } = useTutorial();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const q = useQuery({ queryKey: ['categories'], queryFn: () => categoryApi.getAll() });
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'expense' | 'income'>('expense');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const resetForm = () => {
+    setName('');
+    setKind('expense');
+    setImageUrl(null);
+    setEditingId(null);
+  };
+
+  const startEdit = (category: Category) => {
+    setEditingId(category._id);
+    setName(category.name);
+    setKind(category.type);
+    setImageUrl(category.image_url ?? null);
+  };
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setLoading(true);
+    try {
+      if (editingId) {
+        await categoryApi.update(editingId, {
+          name: name.trim(),
+          type: kind,
+          image_url: imageUrl,
+        });
+        toast('Catégorie modifiée', 'ok');
+      } else {
+        await categoryApi.create({ name: name.trim(), type: kind, image_url: imageUrl });
+        toast('Catégorie créée', 'ok');
+        if (step === 'category-submit' || step === 'category-name') afterCategoryCreated();
+      }
+      await invalidateFinance();
+      resetForm();
+    } catch (err) {
+      if (isPremiumRequiredError(err)) {
+        toast(err.message, 'info');
+        router.push('/subscription');
+      } else toast(err instanceof Error ? err.message : 'Impossible', 'err');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const remove = async (category: Category) => {
+    const ok = await confirm({
+      title: 'Retirer cette catégorie ?',
+      body: `« ${category.name} » sera supprimée. Les écritures déjà classées gardent leur libellé.`,
+      confirmLabel: 'Retirer',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await categoryApi.delete(category._id);
+      if (editingId === category._id) resetForm();
+      await invalidateFinance();
+      toast('Catégorie retirée', 'ok');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+    }
+  };
+
+  const list = q.data ?? [];
+  const expenses = list.filter((c) => c.type === 'expense');
+  const incomes = list.filter((c) => c.type === 'income');
+
+  const renderRow = (c: Category) => (
+    <View key={c._id} style={styles.row}>
+      <EntityAvatar imageUrl={c.image_url} name={c.name} type="category" size={44} />
+      <Text style={styles.name}>{c.name}</Text>
+      <PressScale onPress={() => startEdit(c)} accessibilityLabel={`Modifier ${c.name}`} style={styles.iconBtn}>
+        <Pencil color={color.textMuted} size={18} strokeWidth={2} />
+      </PressScale>
+      <PressScale onPress={() => void remove(c)} accessibilityLabel={`Supprimer ${c.name}`} style={styles.iconBtn}>
+        <Trash2 color={color.danger} size={18} strokeWidth={2} />
+      </PressScale>
+    </View>
+  );
+
+  return (
+    <Screen scroll onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
+      <ScreenHeader title="Catégories" />
+      {!isPremium ? (
+        <Text style={styles.limit}>Plan gratuit : {PLAN_LIMITS.FREE_MAX_CATEGORIES_PER_TYPE} par type.</Text>
+      ) : null}
+      <ImageUpload
+        value={imageUrl}
+        onChange={setImageUrl}
+        endpoint="categoryImage"
+        label="Icône de la catégorie"
+      />
+      <View style={{ height: 16 }} />
+      <View style={styles.kinds}>
+        <PressScale onPress={() => setKind('expense')}>
+          <Text style={[styles.k, kind === 'expense' && styles.kon]}>Sortie</Text>
+        </PressScale>
+        <PressScale onPress={() => setKind('income')}>
+          <Text style={[styles.k, kind === 'income' && styles.kon]}>Entrée</Text>
+        </PressScale>
+      </View>
+      <TutorialTarget id="category-name">
+        <Field label={editingId ? 'Nom' : 'Nouvelle'} value={name} onChangeText={setName} />
+      </TutorialTarget>
+      <View style={{ height: 12 }} />
+      <TutorialTarget id="category-submit">
+        <Button label="Enregistrer" loadingLabel="Enregistrement…" onPress={() => void save()} loading={loading} />
+      </TutorialTarget>
+      {editingId ? (
+        <>
+          <View style={{ height: 8 }} />
+          <Button label="Annuler" variant="ghost" onPress={resetForm} />
+        </>
+      ) : null}
+      <Text style={styles.sec}>Sorties ({expenses.length})</Text>
+      {expenses.map(renderRow)}
+      <Text style={styles.sec}>Entrées ({incomes.length})</Text>
+      {incomes.map(renderRow)}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  limit: { fontFamily: font.sans, color: color.brassMute, marginBottom: 16, fontSize: 13 },
+  kinds: { flexDirection: 'row', gap: 16, marginBottom: 16 },
+  k: { fontFamily: font.sansMed, color: color.brassMute, letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 12 },
+  kon: { color: color.brass },
+  sec: { marginTop: 28, marginBottom: 8, fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brass },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: color.line,
+  },
+  name: { fontFamily: font.sans, color: color.ivory, fontSize: 16, flex: 1 },
+  iconBtn: { padding: 6 },
+});

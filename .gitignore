@@ -41,3 +41,5 @@ example
 # generated native folders
 /ios
 /android
+modules/sms-monitor/android/build
+modules/sms-monitor/android/.gradle

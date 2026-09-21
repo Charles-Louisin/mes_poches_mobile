@@ -1,42 +1,143 @@
 {
   "expo": {
-    "name": "mes-poches-mobile",
+    "name": "MES POCHES",
     "slug": "mes-poches-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "mespochesmobile",
-    "userInterfaceStyle": "automatic",
+    "icon": "./assets/brand/mark-512.png",
+    "scheme": "mespoches",
+    "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.mespoches.app",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "MES POCHES utilise la reconnaissance vocale pour extraire le montant et le libellé.",
+        "NSMicrophoneUsageDescription": "MES POCHES utilise le micro pour dicter une transaction."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#2563EB",
+        "foregroundImage": "./assets/brand/mark-512.png",
+        "monochromeImage": "./assets/brand/mark-512.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.mespoches.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "mespoches",
+              "host": "auth",
+              "pathPrefix": "/google"
+            },
+            {
+              "scheme": "mespoches"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECEIVE_SMS",
+        "android.permission.READ_SMS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/brand/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/brand/mark-512.png",
+          "imageWidth": 132
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/brand/mark-96.png",
+          "color": "#2563EB",
+          "sounds": []
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "MES POCHES utilise Face ID pour ouvrir votre session."
+        }
+      ],
+      "expo-localization",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MES POCHES utilise vos photos pour scanner un ticket.",
+          "cameraPermission": "MES POCHES utilise la caméra pour photographier un ticket.",
+          "microphonePermission": "MES POCHES utilise le micro pour dicter une transaction."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "MES POCHES utilise le micro pour dicter une transaction.",
+          "speechRecognitionPermission": "MES POCHES utilise la reconnaissance vocale pour extraire le montant et le libellé.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.tts",
+            "com.google.android.as",
+            "com.google.android.gms",
+            "com.google.android.googlequicksearchbox.nga",
+            "com.samsung.android.bixby.agent"
+          ]
+        }
+      ],
+      "./modules/sms-monitor/app.plugin.js",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "MES POCHES utilise le micro pour dicter une transaction.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "./plugins/withMicrophonePermission.js"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fbacdc88-f2d0-48f4-894b-278b8e2900c5"
+      }
     }
   }
 }

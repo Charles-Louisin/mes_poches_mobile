@@ -1,0 +1,745 @@
+import { fetchApi, fetchApiBlob } from './api-client';
+
+// Wallets
+export const walletApi = {
+  getAll: () => fetchApi<Wallet[]>('/wallets'),
+  getById: (id: string) => fetchApi<Wallet>(`/wallets/${id}`),
+  getTotalBalance: () =>
+    fetchApi<{ total: number; totalSavings?: number; wallets: Wallet[] }>(
+      '/wallets/total-balance'
+    ),
+  create: (data: {
+    name: string
+    image_url?: string | null
+    initial_balance?: number
+  }) =>
+    fetchApi<Wallet>('/wallets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { name?: string; image_url?: string | null }) =>
+    fetchApi<Wallet>(`/wallets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi(`/wallets/${id}`, { method: 'DELETE' }),
+  getHistory: (id: string) =>
+    fetchApi<{
+      wallet: Wallet;
+      transactions: Transaction[];
+      planned_expenses?: PlannedExpense[];
+    }>(`/wallets/${id}/history`),
+};
+
+// Transactions
+export const transactionApi = {
+  getAll: (filters?: {
+    wallet_id?: string;
+    type?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.wallet_id) params.append('wallet_id', filters.wallet_id);
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    
+    const query = params.toString();
+    return fetchApi<Transaction[]>(`/transactions${query ? `?${query}` : ''}`);
+  },
+  getById: (id: string) => fetchApi<Transaction>(`/transactions/${id}`),
+  getTransferPair: (id: string) =>
+    fetchApi<{ debit: Transaction | null; credit: Transaction | null }>(
+      `/transactions/${id}/transfer-pair`
+    ),
+  createIncome: (data: TransactionInput) =>
+    fetchApi<Transaction>('/transactions/income', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  createExpense: (data: TransactionInput) =>
+    fetchApi<Transaction>('/transactions/expense', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  createTransfer: (data: TransferInput) =>
+    fetchApi<{ debit: Transaction; credit: Transaction }>('/transactions/transfer', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (
+    id: string,
+    data: {
+      description?: string
+      amount?: number
+      wallet_id?: string
+      category_id?: string | null
+      date?: string
+      line_items?: TransactionLineItem[]
+    }
+  ) =>
+    fetchApi<Transaction>(`/transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi<{ message?: string }>(`/transactions/${id}`, { method: 'DELETE' }),
+};
+
+// Categories
+export const categoryApi = {
+  getAll: (type?: 'income' | 'expense') => {
+    const query = type ? `?type=${type}` : '';
+    return fetchApi<Category[]>(`/categories${query}`);
+  },
+  getById: (id: string) => fetchApi<Category>(`/categories/${id}`),
+  create: (data: { name: string; type: 'income' | 'expense'; image_url?: string | null }) =>
+    fetchApi<Category>('/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { name?: string; type?: 'income' | 'expense'; image_url?: string | null }) =>
+    fetchApi<Category>(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi(`/categories/${id}`, { method: 'DELETE' }),
+};
+
+// Analytics (utilisateur)
+export const analyticsApi = {
+  getCurrentMonth: () =>
+    fetchApi<MonthStats>('/analytics/current-month'),
+  getMonth: (year: number, month: number) =>
+    fetchApi<MonthStats>(`/analytics/month?year=${year}&month=${month}`),
+  getMonthComparison: (year: number, month: number) =>
+    fetchApi<MonthComparison>(`/analytics/month-comparison?year=${year}&month=${month}`),
+  getExpensesByCategory: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString();
+    return fetchApi<CategoryStat[]>(`/analytics/expenses-by-category${query ? `?${query}` : ''}`);
+  },
+  getIncomesByCategory: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString();
+    return fetchApi<CategoryStat[]>(`/analytics/incomes-by-category${query ? `?${query}` : ''}`);
+  },
+  getOverview: (year: number, month: number) =>
+    fetchApi<MonthOverview>(`/analytics/overview?year=${year}&month=${month}`),
+  getBriefing: (year: number, month: number, signal?: AbortSignal) =>
+    fetchApi<MonthBriefing>(`/analytics/briefing?year=${year}&month=${month}`, { signal }),
+};
+
+// Subscription
+export const subscriptionApi = {
+  getPlans: () =>
+    fetchApi<{
+      plans: typeof import('./planLimits').SUBSCRIPTION_PLANS;
+      paymentAvailable: boolean;
+      sandbox?: boolean;
+      message: string;
+      paymentMethods?: { id: string; label: string; code: string | null }[];
+    }>('/subscription/plans'),
+  getStatus: () =>
+    fetchApi<{ user: MeUser; isPremium: boolean; paymentAvailable: boolean }>(
+      '/subscription/status'
+    ),
+  createCheckout: (
+    period: import('./planLimits').BillingPeriod,
+    paymentMethod: 'all' | 'orange' | 'mtn' = 'all'
+  ) =>
+    fetchApi<{ paymentUrl: string; transactionId: string }>('/subscription/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ period, payment_method: paymentMethod }),
+    }),
+  verifyPayment: (transactionId: string) =>
+    fetchApi<{
+      status: string;
+      isPremium: boolean;
+      premiumUntil: string | null;
+      user: MeUser;
+    }>(`/subscription/verify?transaction_id=${encodeURIComponent(transactionId)}`),
+};
+
+// Budgets (Premium)
+export interface Budget {
+  _id: string;
+  category_id: Category | string;
+  year: number;
+  month: number;
+  limit_amount: number;
+  spent?: number;
+  percent?: number;
+}
+
+export const budgetApi = {
+  getAll: (year: number, month: number) =>
+    fetchApi<Budget[]>(`/budgets?year=${year}&month=${month}`),
+  create: (data: {
+    category_id: string;
+    year: number;
+    month: number;
+    limit_amount: number;
+  }) =>
+    fetchApi<Budget>('/budgets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, limit_amount: number) =>
+    fetchApi<Budget>(`/budgets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ limit_amount }),
+    }),
+  delete: (id: string) =>
+    fetchApi(`/budgets/${id}`, { method: 'DELETE' }),
+};
+
+// Objectifs d'épargne (Premium)
+export interface SavingsGoal {
+  _id: string;
+  title: string;
+  target_amount: number;
+  saved_amount?: number;
+  deadline?: string | null;
+  current_amount?: number;
+  progress_percent?: number;
+}
+
+export const savingsGoalApi = {
+  getAll: () => fetchApi<SavingsGoal[]>('/savings-goals'),
+  getTotal: () => fetchApi<{ total: number }>('/savings-goals/total'),
+  create: (data: {
+    title: string;
+    target_amount: number;
+    deadline?: string | null;
+  }) =>
+    fetchApi<SavingsGoal>('/savings-goals', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      target_amount?: number;
+      deadline?: string | null;
+    }
+  ) =>
+    fetchApi<SavingsGoal>(`/savings-goals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi(`/savings-goals/${id}`, { method: 'DELETE' }),
+};
+
+// Dépenses prévues (fonctionnalité de base)
+export interface PlannedExpense {
+  _id: string;
+  wallet_id: Wallet | string;
+  category_id?: Category | string | null;
+  amount: number;
+  description: string;
+  scheduled_date: string;
+  status: 'scheduled' | 'executed' | 'cancelled';
+  cancelled_reason?: 'user' | 'insufficient_balance' | null;
+  executed_transaction_id?: string | null;
+  created_at: string;
+}
+
+export const plannedExpenseApi = {
+  getAll: (params?: { wallet_id?: string; status?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.wallet_id) search.append('wallet_id', params.wallet_id);
+    if (params?.status) search.append('status', params.status);
+    const q = search.toString();
+    return fetchApi<PlannedExpense[]>(
+      `/planned-expenses${q ? `?${q}` : ''}`
+    );
+  },
+  create: (data: {
+    amount: number;
+    wallet_id: string;
+    category_id?: string;
+    description?: string;
+    scheduled_date: string;
+  }) =>
+    fetchApi<PlannedExpense>('/planned-expenses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (
+    id: string,
+    data: {
+      amount?: number;
+      wallet_id?: string;
+      category_id?: string | null;
+      description?: string;
+      scheduled_date?: string;
+    }
+  ) =>
+    fetchApi<PlannedExpense>(`/planned-expenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  cancel: (id: string) =>
+    fetchApi(`/planned-expenses/${id}`, { method: 'DELETE' }),
+};
+
+// Transactions en attente de validation (SMS, notifications, IA)
+export interface TransactionLineItem {
+  description: string;
+  amount: number;
+  quantity?: number;
+  unit_amount?: number;
+  type?: 'income' | 'expense';
+}
+
+/** Retire les champs Mongo (_id…) refusés par la validation de l'API. */
+export function sanitizeLineItems(
+  items: TransactionLineItem[] | undefined
+): TransactionLineItem[] {
+  return (items || []).map((item) => ({
+    description: item.description,
+    amount: item.amount,
+    ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
+    ...(item.unit_amount !== undefined ? { unit_amount: item.unit_amount } : {}),
+    ...(item.type !== undefined ? { type: item.type } : {}),
+  }));
+}
+
+export interface PendingTransaction {
+  _id: string;
+  status: 'pending' | 'validated' | 'rejected';
+  source: 'sms' | 'notification' | 'ai_scan' | 'manual' | 'voice';
+  source_type?: 'image' | 'parser' | 'ai' | 'sms' | 'manual' | 'voice';
+  document_type?: string;
+  type: 'income' | 'expense';
+  amount: number;
+  operator: 'orange' | 'mtn' | 'unknown';
+  counterparty: string;
+  description: string;
+  date: string;
+  raw_text: string;
+  wallet_id?: Wallet | string | null;
+  category_id?: Category | string | null;
+  confidence: number;
+  pattern?: 'transfer_out' | 'transfer_in' | 'payment' | 'withdrawal' | 'unknown';
+  transaction_id?: string;
+  ai_enriched?: boolean;
+  low_confidence_warning?: string;
+  ai_items?: TransactionLineItem[];
+  validated_transaction_id?: string | null;
+  created_at: string;
+}
+
+export const pendingTransactionApi = {
+  getAll: (status = 'pending') =>
+    fetchApi<PendingTransaction[]>(`/pending-transactions?status=${status}`),
+  getCount: () =>
+    fetchApi<{ count: number }>('/pending-transactions/count'),
+  getById: (id: string) =>
+    fetchApi<PendingTransaction>(`/pending-transactions/${id}`),
+  update: (
+    id: string,
+    data: Partial<{
+      amount: number;
+      type: 'income' | 'expense';
+      wallet_id: string;
+      category_id: string | null;
+      description: string;
+      date: string;
+      ai_items: TransactionLineItem[];
+    }>
+  ) =>
+    fetchApi<PendingTransaction>(`/pending-transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  validate: (
+    id: string,
+    data?: Partial<{
+      amount: number;
+      type: 'income' | 'expense';
+      wallet_id: string;
+      category_id: string | null;
+      description: string;
+      date: string;
+      ai_items: TransactionLineItem[];
+    }>
+  ) =>
+    fetchApi<{ pending: PendingTransaction; transactionId: string }>(
+      `/pending-transactions/${id}/validate`,
+      { method: 'POST', body: JSON.stringify(data || {}) }
+    ),
+  reject: (id: string) =>
+    fetchApi<PendingTransaction>(`/pending-transactions/${id}/reject`, {
+      method: 'POST',
+    }),
+  parseSms: (text: string) =>
+    fetchApi<PendingTransaction>('/pending-transactions/parse-sms', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+  parseNotification: (title: string, body: string) =>
+    fetchApi<PendingTransaction>('/pending-transactions/parse-notification', {
+      method: 'POST',
+      body: JSON.stringify({ title, body }),
+    }),
+  aiScan: (image: string, mimeType = 'image/jpeg', signal?: AbortSignal) => {
+    const payload =
+      image.startsWith('data:') ? image : `data:${mimeType};base64,${image}`;
+    return fetchApi<PendingTransaction[]>('/pending-transactions/ai-scan', {
+      method: 'POST',
+      body: JSON.stringify({ image: payload, mimeType }),
+      signal,
+    });
+  },
+  voiceNote: (
+    payload: { text?: string; audio?: string; mimeType?: string } | string,
+    signal?: AbortSignal
+  ) => {
+    const body =
+      typeof payload === 'string' ? { text: payload } : payload;
+    return fetchApi<PendingTransaction | PendingTransaction[]>('/pending-transactions/voice-note', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      signal,
+    }).then((data) => (Array.isArray(data) ? data : data ? [data] : []));
+  },
+  getHabitsSummary: () =>
+    fetchApi<{
+      habits: Array<{
+        counterparty: string;
+        pattern: string;
+        type: string;
+        description: string;
+        validation_count: number;
+      }>;
+      identity: { names: string[]; phones: string[] };
+      total: number;
+      recurrenceAnalysis?: string;
+    }>('/pending-transactions/habits/summary'),
+};
+
+// Transactions récurrentes (Premium)
+export interface RecurringTransaction {
+  _id: string;
+  type: 'income' | 'expense';
+  amount: number;
+  wallet_id: Wallet | string | null;
+  category_id?: Category | string | null;
+  description: string;
+  frequency: 'weekly' | 'monthly';
+  day_of_month?: number | null;
+  next_run_date: string;
+  active: boolean;
+  status?: 'suggested' | 'active' | 'dismissed';
+  source?: 'user' | 'ai';
+}
+
+export const recurringApi = {
+  getAll: (status?: 'suggested' | 'active') => {
+    const q = status ? `?status=${status}` : '';
+    return fetchApi<RecurringTransaction[]>(`/recurring${q}`);
+  },
+  create: (data: Omit<RecurringTransaction, '_id' | 'active'> & { active?: boolean }) =>
+    fetchApi<RecurringTransaction>('/recurring', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  accept: (id: string) =>
+    fetchApi<RecurringTransaction>(`/recurring/${id}/accept`, { method: 'POST' }),
+  dismiss: (id: string) =>
+    fetchApi<RecurringTransaction>(`/recurring/${id}/dismiss`, { method: 'POST' }),
+  run: (id: string) =>
+    fetchApi<{ transaction: Transaction; recurring: RecurringTransaction }>(
+      `/recurring/${id}/run`,
+      { method: 'POST' }
+    ),
+  delete: (id: string) =>
+    fetchApi(`/recurring/${id}`, { method: 'DELETE' }),
+};
+
+// Export (Premium)
+export type ExportFormat = 'csv' | 'pdf' | 'xlsx';
+
+export const exportApi = {
+  downloadTransactions: (format: ExportFormat) =>
+    fetchApiBlob(`/export/transactions?format=${format}`),
+  downloadTransaction: (id: string, format: ExportFormat) =>
+    fetchApiBlob(`/export/transactions/${id}?format=${format}`),
+  /** @deprecated Utiliser downloadTransactions('csv') */
+  downloadTransactionsCsv: () => fetchApiBlob('/export/transactions?format=csv'),
+};
+
+// Auth
+export const authApi = {
+  me: () =>
+    fetchApi<MeUser>('/auth/me'),
+  updateMe: (data: { currency?: string; hidePlannedExpensesHelp?: boolean }) =>
+    fetchApi<MeUser>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteMe: () =>
+    fetchApi<{ message: string }>('/auth/me', { method: 'DELETE' }),
+};
+
+// Admin
+export const adminApi = {
+  getUsers: () =>
+    fetchApi<AdminUserSummary[]>('/admin/users'),
+  getUserById: (id: string) =>
+    fetchApi<AdminUserDetail>(`/admin/users/${id}`),
+  getOverviewStats: () =>
+    fetchApi<AdminOverviewStats>('/admin/stats/overview'),
+  getDailyActiveUsers: (days: number = 30) =>
+    fetchApi<DailyActiveUsersStat[]>(`/admin/stats/daily-active-users?days=${days}`),
+};
+
+// Types
+export interface Wallet {
+  _id: string;
+  name: string;
+  currency: string;
+  current_balance: number;
+  image_url?: string | null;
+  created_at: string;
+  month_income?: number;
+  month_expense?: number;
+}
+
+export interface Transaction {
+  _id: string;
+  type: 'income' | 'expense' | 'transfer';
+  amount: number;
+  wallet_id: Wallet | string | null;
+  destination_wallet_id?: Wallet | string;
+  category_id?: Category | string;
+  description: string;
+  line_items?: TransactionLineItem[];
+  date: string;
+  balance_before: number;
+  balance_after: number;
+  transfer_group_id?: string | null;
+  is_transfer_mirror?: boolean;
+  savings_goal_id?: SavingsGoal | string | null;
+  created_at: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
+export interface Category {
+  _id: string;
+  name: string;
+  type: 'income' | 'expense';
+  image_url?: string | null;
+  created_at: string;
+}
+
+export interface TransactionInput {
+  amount: number;
+  wallet_id?: string;
+  category_id?: string;
+  description?: string;
+  date?: string;
+  savings_goal_id?: string;
+  line_items?: TransactionLineItem[];
+}
+
+export interface TransferInput {
+  amount: number;
+  wallet_id: string;
+  destination_wallet_id?: string;
+  savings_goal_id?: string;
+  description?: string;
+  date?: string;
+}
+
+export interface MonthStats {
+  month: number;
+  year: number;
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  incomeCount: number;
+  expenseCount: number;
+}
+
+export interface MonthComparison {
+  /** Mois affiché dans le sélecteur */
+  selected: MonthStats;
+  /** Mois juste avant (référence de comparaison) */
+  previous: MonthStats;
+  delta: {
+    totalIncome: number;
+    totalExpense: number;
+    balance: number;
+    incomeCount: number;
+    expenseCount: number;
+  };
+  percent: {
+    totalIncome: number | null;
+    totalExpense: number | null;
+    balance: number | null;
+  };
+}
+
+export interface MeUser {
+  id: string;
+  email: string;
+  name?: string;
+  role?: 'user' | 'admin';
+  plan?: 'free' | 'premium';
+  premiumUntil?: string | null;
+  premiumSource?: 'trial' | 'paid' | null;
+  isPremium?: boolean;
+  isOnTrial?: boolean;
+  currency?: string;
+  hidePlannedExpensesHelp?: boolean;
+  created_at: string;
+  lastLoginAt?: string | null;
+}
+
+export interface CategoryStat {
+  category: string;
+  total: number;
+  count: number;
+}
+
+export interface AnalyticsHit {
+  id: string;
+  description: string;
+  amount: number;
+  date: string;
+  category: string | null;
+}
+
+export interface MonthOverview {
+  selected: MonthStats;
+  previous: MonthStats;
+  comparison: MonthComparison;
+  expenses: CategoryStat[];
+  incomes: CategoryStat[];
+  kpis: {
+    savingsRate: number | null;
+    expenseRatio: number | null;
+    dailyExpenseAvg: number;
+    dailyIncomeAvg: number;
+    avgExpenseTicket: number;
+    avgIncomeTicket: number;
+    activeDays: number;
+    daysInMonth: number;
+    daysElapsed: number;
+    isCurrent: boolean;
+    projectedExpense: number;
+    cash: number;
+    totalSavings: number;
+    runwayDays: number | null;
+    transferVolume: number;
+    transferCount: number;
+    savingsDeposited: number;
+    plannedAmount: number;
+    plannedCount: number;
+    budgetsOver: number;
+    budgetsOk: number;
+  };
+  wallets: {
+    id: string;
+    name: string;
+    balance: number;
+    income: number;
+    expense: number;
+    net: number;
+  }[];
+  budgets: {
+    id: string;
+    category: string;
+    limit: number;
+    spent: number;
+    remaining: number;
+    percent: number;
+    over: boolean;
+    vsPrevious: number;
+  }[];
+  savings: {
+    id: string;
+    title: string;
+    current: number;
+    target: number;
+    remaining: number;
+    progress: number;
+    monthIn: number;
+    deadline: string | null;
+    onTrack: boolean | null;
+  }[];
+  weekday: { day: string; expense: number; income: number; count: number }[];
+  topExpenses: AnalyticsHit[];
+  topIncomes: AnalyticsHit[];
+  categoryShifts: { category: string; current: number; previous: number; delta: number }[];
+  largestExpense: AnalyticsHit | null;
+  largestIncome: AnalyticsHit | null;
+}
+
+export interface MonthBriefing {
+  headline: string;
+  mood: 'good' | 'watch' | 'alert';
+  summary: string;
+  highlights: string[];
+  alerts: string[];
+  tips: string[];
+}
+
+// Admin types
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  name?: string;
+  role: 'user' | 'admin';
+  created_at: string;
+  lastLoginAt?: string;
+  walletsCount: number;
+  transactionsCount: number;
+  totalIncome: number;
+  totalExpense: number;
+}
+
+export interface AdminOverviewStats {
+  usersCount: number;
+  walletsCount: number;
+  transactionsCount: number;
+  lastLogins: {
+    email: string;
+    name?: string;
+    role: 'user' | 'admin';
+    lastLoginAt: string;
+  }[];
+}
+
+export interface DailyActiveUsersStat {
+  date: string; // YYYY-MM-DD
+  activeUsers: number;
+}
+
+export interface AdminUserDetail {
+  user: {
+    _id: string;
+    email: string;
+    name?: string;
+    role: 'user' | 'admin';
+    created_at: string;
+    lastLoginAt?: string;
+  };
+  wallets: Wallet[];
+  transactions: Transaction[];
+}

@@ -1,0 +1,9 @@
+android
+ios
+.expo
+modules/sms-monitor/android/build
+modules/sms-monitor/android/.gradle
+**/*.jks
+**/*.keystore
+.env
+.env.local
