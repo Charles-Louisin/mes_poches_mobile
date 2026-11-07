@@ -10,33 +10,33 @@ import { ChartArt, CoinsArt, GiftArt, WriteArt } from '@/components/illustration
 import { Button } from '@/components/ui/button';
 import { PressScale } from '@/components/ui/press-scale';
 import { color, motion, type as font, typeScale } from '@/theme/tokens';
-import { isAndroidNative } from '@/lib/sms-monitor';
+import { isAndroidNative, isMoneyCaptureEnabled } from '@/lib/sms-monitor';
 import { STORAGE_KEYS, getString } from '@/lib/storage';
 
 const PAGES = [
   {
     key: 'balance',
     Art: CoinsArt,
-    title: 'Tes poches, un seul solde',
-    body: 'Cash, Orange, MTN, banque : chaque poche a son montant. Plus de mélange, plus de “il me reste combien ?”.',
+    title: 'Vos poches, un seul regard',
+    body: 'Cash, Orange Money, MTN, banque : chaque poche a son solde. Vous voyez ce qu’il reste vraiment, sans tout mélanger dans la tête.',
   },
   {
     key: 'capture',
     Art: WriteArt,
     title: 'Saisir, scanner ou valider',
-    body: 'Une écriture à la main, un ticket, un SMS Mobile Money. Rien n’est enregistré sans ta validation.',
+    body: 'Une écriture à la main, un ticket, un SMS Mobile Money : l’app vous propose, vous confirmez. Rien n’est enregistré sans votre accord — c’est vous qui gardez le contrôle.',
   },
   {
     key: 'insights',
     Art: ChartArt,
-    title: 'Comprends tes mois',
-    body: 'Entrées, sorties, catégories. Une lecture claire pour décider, pas un tableau Excel.',
+    title: 'Comprendre vos mois',
+    body: 'Entrées, sorties, catégories : une lecture claire pour décider, pas un tableau à décortiquer. Vous voyez où va l’argent, pas seulement le solde.',
   },
   {
     key: 'premium',
     Art: GiftArt,
     title: 'Un mois Premium offert',
-    body: 'À l’inscription, l’essai est inclus. Ensuite tu gardes Premium — ou tu restes sur le plan gratuit.',
+    body: 'Dès l’inscription, l’essai est inclus pour tester scan, dictée et analyses. Ensuite, vous gardez Premium — ou vous restez sur le plan gratuit, sans surprise.',
   },
 ] as const;
 
@@ -52,7 +52,7 @@ export default function OnboardingScreen() {
 
   const goNextScreen = async () => {
     await markOnboardingSeen();
-    if (isAndroidNative()) {
+    if (isAndroidNative() && isMoneyCaptureEnabled()) {
       const asked = await getString(STORAGE_KEYS.captureSetup);
       if (asked !== 'true') {
         router.replace('/');

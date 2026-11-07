@@ -13,7 +13,10 @@ export const STORAGE_KEYS = {
   captureSetup: 'mp_capture_setup_v1',
   analyticsBriefing: 'mp_analytics_briefing',
   offlineQueue: 'mp_offline_queue',
+  nativePendingPatches: 'mp_native_pending_patches',
   biometric: 'mp_biometric_login',
+  inboxLastAt: 'mp_inbox_last_at',
+  updateDismissedId: 'mp_update_dismissed_id',
 } as const;
 
 export async function getJson<T>(key: string): Promise<T | null> {

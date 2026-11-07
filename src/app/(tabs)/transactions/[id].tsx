@@ -4,7 +4,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { categoryApi, sanitizeLineItems, transactionApi, walletApi, type TransactionLineItem } from '@/lib/api';
 import { invalidateFinance } from '@/lib/query';
-import { formatDate, formatDateTime, getTransactionTypeLabel, idOf, nameOf, savingsGoalIdOf } from '@/lib/utils';
+import {
+  formatDate,
+  formatDateTime,
+  getTransactionTypeLabel,
+  idOf,
+  nameOf,
+  savingsGoalIdOf,
+} from '@/lib/utils';
+import { getErrorMessage } from '@/lib/errors';
 import { useConfirm } from '@/contexts/confirm';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
@@ -87,7 +95,7 @@ export default function TransactionDetailScreen() {
       setEditing(false);
       toast('Écriture mise à jour', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setSaving(false);
     }
@@ -108,7 +116,7 @@ export default function TransactionDetailScreen() {
       toast('Écriture retirée', 'ok');
       router.back();
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setRemoving(false);
     }

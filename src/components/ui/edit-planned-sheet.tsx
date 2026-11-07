@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { categoryApi, plannedExpenseApi, walletApi, type PlannedExpense } from '@/lib/api';
 import { getMinFutureUtcDateInputValue } from '@/lib/plannedExpenseDates';
 import { idOf } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/errors';
 import { useToast } from '@/contexts/toast';
 import { Button } from './button';
 import { DateField } from './date-field';
@@ -75,7 +76,7 @@ export function EditPlannedSheet({
       onSaved();
       onClose();
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setSaving(false);
     }

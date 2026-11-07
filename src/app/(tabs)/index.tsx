@@ -5,7 +5,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Bell, ScanLine, Settings, X } from 'lucide-react-native';
 import {
   analyticsApi,
+  type MeUser,
   budgetApi,
+  categoryApi,
   pendingTransactionApi,
   savingsGoalApi,
   transactionApi,
@@ -17,7 +19,6 @@ import { formatDate, sortTransactionsByDateDesc } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth';
 import { useCurrency } from '@/contexts/currency';
 import { useReceiptScan } from '@/contexts/receipt-scan';
-import { useToast } from '@/contexts/toast';
 import { BrandMark } from '@/components/brand/brand-mark';
 import { BalanceCard } from '@/components/ui/balance-card';
 import { Card } from '@/components/ui/card';
@@ -30,16 +31,42 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { TransactionItem } from '@/components/ui/transaction-item';
 import { useTutorial } from '@/contexts/tutorial';
+import { blockIfQuotaFull } from '@/components/subscription/quota-prompt';
 import { getTrialDaysLeft } from '@/lib/subscription';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageSkeleton } from '@/components/ui/page-skeleton';
 import { PocketArt, ReceiptArt } from '@/components/illustrations';
 import { color, radius, space, type as font, typeScale } from '@/theme/tokens';
 
+function QuotaHints({ quotas }: { quotas?: MeUser['quotas'] }) {
+  const items = Object.values(quotas ?? {}).filter(
+    (q) => q.limit != null && q.limit > 0 && q.used / q.limit >= 0.8 && (q.remaining ?? 0) > 0
+  );
+  if (!items.length) return null;
+  return (
+    <View style={styles.quotaBox}>
+      {items.map((q) => {
+        const ratio = Math.min(1, q.used / (q.limit || 1));
+        const when = q.period === 'month' ? ' ce mois-ci' : '';
+        return (
+          <View key={q.key} style={styles.quotaItem}>
+            <View style={styles.quotaTrack}>
+              <View style={[styles.quotaFill, { width: `${Math.round(ratio * 100)}%` }]} />
+            </View>
+            <Text style={styles.quotaT}>
+              Il vous reste {q.remaining} {q.label}
+              {when}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
-  const { user, isPremium, isOnTrial, requirePremium } = useAuth();
+  const { user, isPremium, isOnTrial } = useAuth();
   const { formatAmount } = useCurrency();
-  const toast = useToast();
   const { startScan } = useReceiptScan();
   const { active: tutorialOn } = useTutorial();
   const [hidden, setHidden] = useState(false);
@@ -71,7 +98,7 @@ export default function HomeScreen() {
       const [wallets, balance, txs, stats, pending, budgets, goals, localTx, localPending] = await Promise.all([
         walletApi.getAll().catch(() => []),
         walletApi.getTotalBalance().catch(() => ({ total: 0, totalSavings: 0, wallets: [] })),
-        transactionApi.getAll({ limit: 40 }).catch(() => []),
+        transactionApi.getAll({ limit: 200 }).catch(() => []),
         analyticsApi.getCurrentMonth().catch(() => null),
         pendingTransactionApi.getCount().catch(() => ({ count: 0 })),
         isPremium
@@ -80,6 +107,7 @@ export default function HomeScreen() {
         isPremium ? savingsGoalApi.getAll().catch(() => []) : Promise.resolve([]),
         localTransactions(),
         localPendings(),
+        categoryApi.getAll().catch(() => []),
       ]);
       return {
         wallets,
@@ -162,13 +190,8 @@ export default function HomeScreen() {
             label: 'Scanner',
             Icon: ScanLine,
             tone: 'warning',
-            premium: true,
             onPress: () => {
-              if (!isPremium) {
-                toast('Le scan de ticket est réservé à Premium', 'info');
-                requirePremium();
-                return;
-              }
+              if (blockIfQuotaFull(user?.quotas, 'scans')) return;
               void startScan();
             },
           },
@@ -182,6 +205,7 @@ export default function HomeScreen() {
         ]}
       />
 
+      <QuotaHints quotas={user?.quotas} />
       {isOnTrial && !hideTrial && !tutorialOn ? (
         <View style={[styles.trial, trialDays <= 7 && styles.trialUrgent]}>
           <PressScale onPress={() => router.push('/subscription')} style={{ flex: 1 }}>
@@ -321,6 +345,11 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  quotaBox: { gap: 8, marginBottom: 14 },
+  quotaItem: { gap: 4 },
+  quotaTrack: { height: 4, borderRadius: 4, backgroundColor: color.line, overflow: 'hidden' },
+  quotaFill: { height: 4, backgroundColor: color.primary },
+  quotaT: { fontFamily: font.sans, fontSize: 13, color: color.textSecondary },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 },
   hello: { ...typeScale.h2, color: color.text, marginTop: 1 },

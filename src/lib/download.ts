@@ -6,12 +6,18 @@ const MIME: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
+export type ExportSaveResult = 'downloads' | 'shared';
+
 export function mimeFor(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return MIME[ext] ?? 'application/octet-stream';
 }
 
-export async function shareExport(endpoint: string, filename: string): Promise<void> {
+export function exportSavedToast(_result: ExportSaveResult): { message: string; tone: 'ok' | 'info' } {
+  return { message: 'Fichier enregistré dans Téléchargements.', tone: 'ok' };
+}
+
+export async function shareExport(endpoint: string, filename: string): Promise<ExportSaveResult> {
   const blob = await fetchApiBlob(endpoint);
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const url = URL.createObjectURL(blob);
@@ -20,6 +26,7 @@ export async function shareExport(endpoint: string, filename: string): Promise<v
   a.download = safeName;
   a.click();
   URL.revokeObjectURL(url);
+  return 'downloads';
 }
 
 export async function shareBlob(blob: Blob, filename: string): Promise<void> {

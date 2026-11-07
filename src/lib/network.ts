@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { ApiError } from './errors';
+import { isNetworkFailure } from './errors';
 
 type NetworkMod = {
   getNetworkStateAsync: () => Promise<{ isConnected?: boolean | null; isInternetReachable?: boolean | null }>;
@@ -60,5 +60,5 @@ export function subscribeOnline(listener: (online: boolean) => void) {
 }
 
 export function isNetworkError(err: unknown): boolean {
-  return err instanceof ApiError && err.code === 'NETWORK';
+  return isNetworkFailure(err);
 }

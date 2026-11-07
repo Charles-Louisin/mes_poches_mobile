@@ -1,43 +1,47 @@
-import { useQuery } from '@tanstack/react-query';
-import { StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { subscriptionApi } from '@/lib/api';
-import type { BillingPeriod } from '@/lib/planLimits';
-import { formatPremiumUntil, getTrialDaysLeft, isSubscriptionPaymentEnabled } from '@/lib/subscription';
-import { useAuth } from '@/contexts/auth';
-import { useToast } from '@/contexts/toast';
 import { PlanCards } from '@/components/subscription/plan-cards';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
-import { color, type as font } from '@/theme/tokens';
+import { useAuth } from '@/contexts/auth';
+import { useToast } from '@/contexts/toast';
+import type { PaidTier } from '@/lib/planLimits';
+import { formatPremiumUntil, getTrialDaysLeft, isSubscriptionPaymentEnabled } from '@/lib/subscription';
 import { track } from '@/lib/telemetry';
+import { color, type as font } from '@/theme/tokens';
+import { router } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function SubscriptionScreen() {
   const { user, isPremium, isOnTrial } = useAuth();
   const toast = useToast();
-  const plans = useQuery({ queryKey: ['plans'], queryFn: () => subscriptionApi.getPlans() });
+  const isAdmin = user?.role === 'admin';
 
-  const choose = (period: BillingPeriod) => {
+  const choose = (tier: PaidTier) => {
     if (!isSubscriptionPaymentEnabled()) {
       toast('Le paiement en ligne arrive bientôt.', 'info');
       return;
     }
-    track('click', { screen: 'subscription', props: { element: period } });
-    router.push(`/subscription/payment?period=${period}`);
+    track('click', { screen: 'subscription', props: { element: tier } });
+    router.push(`/subscription/payment?tier=${tier}`);
   };
+
+  const trialDays = getTrialDaysLeft(user);
+  const status = isAdmin
+    ? 'ADMINISTRATEUR'
+    : isOnTrial
+      ? `Essai Premium en cours jusqu’au ${formatPremiumUntil(user?.premiumUntil)} · ${trialDays} jour${trialDays > 1 ? 's' : ''} restant${trialDays > 1 ? 's' : ''}.`
+      : isPremium
+        ? `Premium jusqu’au ${formatPremiumUntil(user?.premiumUntil)}.`
+        : user?.lifetime
+          ? `${user.tierLabel || 'Votre forfait'} est offert, sans échéance.`
+          : user?.tierLabel && user.accessTier && user.accessTier !== 'free'
+            ? `Forfait ${user.tierLabel}.`
+            : 'Gratuit, Pro, Pro+ ou Business. Choisissez selon votre usage.';
 
   return (
     <Screen scroll>
       <ScreenHeader title="Premium" back />
-      <Text style={styles.lede}>
-        {isOnTrial
-          ? `Essai · encore ${getTrialDaysLeft(user)} jours.`
-          : isPremium
-            ? `Actif jusqu’au ${formatPremiumUntil(user?.premiumUntil)}.`
-            : 'Deux formules. Même Premium. Choisissez le rythme qui vous convient.'}
-      </Text>
+      <Text style={[styles.lede, (isOnTrial || isAdmin) && styles.ledeStrong]}>{status}</Text>
       <PlanCards onSelect={choose} />
-      {plans.data?.message ? <Text style={styles.note}>{plans.data.message}</Text> : null}
       <View style={{ height: 8 }} />
     </Screen>
   );
@@ -51,5 +55,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 20,
   },
-  note: { marginTop: 12, fontFamily: font.sans, color: color.textMuted, fontSize: 12 },
+  ledeStrong: {
+    fontFamily: font.sansSemi,
+    fontSize: 18,
+    lineHeight: 26,
+    color: color.primaryDark,
+  },
 });

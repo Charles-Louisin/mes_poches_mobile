@@ -1,23 +1,23 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
-import { router, usePathname } from 'expo-router';
 import { useAuth } from '@/contexts/auth';
 import {
-  getSetupStep,
-  getTrialOfferSeen,
-  setSetupStep,
-  setTrialOfferSeen,
-  subscribeSetup,
-  type TutorialStep,
+    getSetupStep,
+    getTrialOfferSeen,
+    setSetupStep,
+    setTrialOfferSeen,
+    subscribeSetup,
+    type TutorialStep,
 } from '@/lib/setupGuide';
+import { router, usePathname } from 'expo-router';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+} from 'react';
 
 export type TargetRect = { x: number; y: number; width: number; height: number };
 
@@ -37,128 +37,98 @@ export const TUTORIAL_STEPS: StepMeta[] = [
   {
     id: 'pocket-tab',
     target: 'tab-wallets',
-    title: 'Votre première poche',
-    body: 'Une poche = un compte (Cash, Orange, MTN, banque). Appuyez sur Poches.',
+    title: 'On commence par vos poches',
+    body: 'Une poche, c’est un compte réel : cash, Orange Money, MTN, banque. C’est grâce à elles que l’app sait d’où vient l’argent et où il va — sans tout mélanger. Appuyez sur Poches pour en ouvrir une.',
     mode: 'tap',
   },
   {
-    id: 'pocket-add',
-    target: 'wallet-add',
-    title: 'Créer la poche',
-    body: 'Appuyez sur + pour ajouter votre premier compte.',
-    mode: 'tap',
-    route: '/(tabs)/wallets',
-  },
-  {
-    id: 'pocket-name',
-    target: 'wallet-name',
-    title: 'Nommez-la',
-    body: 'Saisissez un nom dans le champ éclairé, par exemple Cash ou Orange Money.',
-    mode: 'input',
+    id: 'pocket-page',
+    title: 'Voici la page pour ajouter une poche',
+    body: 'Le formulaire est devant vous : nom, image, solde. Le guide s’arrête ici — créez la poche quand vous voulez, ou continuez la visite.',
+    mode: 'next',
     cta: 'Continuer',
-  },
-  {
-    id: 'pocket-image',
-    target: 'wallet-image',
-    title: 'Une image (optionnel)',
-    body: 'Ajoutez une icône pour reconnaître la poche d’un coup d’œil. Vous pouvez aussi passer.',
-    mode: 'input',
-    cta: 'Continuer',
-  },
-  {
-    id: 'pocket-balance',
-    target: 'wallet-balance',
-    title: 'Le solde actuel',
-    body: 'Indiquez ce qu’il y a déjà sur ce compte. Zéro si vous partez de rien.',
-    mode: 'input',
-    cta: 'Continuer',
-  },
-  {
-    id: 'pocket-submit',
-    target: 'wallet-submit',
-    title: 'Enregistrer',
-    body: 'Appuyez sur Créer la poche pour valider.',
-    mode: 'tap',
+    route: '/(tabs)/wallets/new',
   },
   {
     id: 'category-tab',
     target: 'tab-categories',
-    title: 'Les catégories',
-    body: 'Elles classent vos dépenses et revenus. Appuyez sur Catégories.',
+    title: 'Les catégories, maintenant',
+    body: 'Elles classent vos mouvements : transport, marché, salaire… Appuyez sur Catégories pour ouvrir la page d’ajout.',
     mode: 'tap',
     route: '/(tabs)/categories',
   },
   {
-    id: 'category-name',
-    target: 'category-name',
-    title: 'Première catégorie',
-    body: 'Tapez un nom : Transport, Marché, Salaire…',
-    mode: 'input',
+    id: 'category-page',
+    title: 'Voici la page pour ajouter une catégorie',
+    body: 'Le champ est sur cet écran. Le guide ne remplit pas la catégorie à votre place. Vous pourrez l’enregistrer juste après, ou plus tard.',
+    mode: 'next',
     cta: 'Continuer',
-  },
-  {
-    id: 'category-submit',
-    target: 'category-submit',
-    title: 'Enregistrer',
-    body: 'Appuyez sur Enregistrer pour créer la catégorie.',
-    mode: 'tap',
   },
   {
     id: 'tour-home',
     target: 'tab-home',
-    title: 'Accueil',
-    body: 'Le solde global, les 4 actions (dépense, revenu, scan, virement) et vos poches.',
+    title: 'L’accueil, votre tableau de bord',
+    body: 'Ici, vous voyez le solde principal, le solde de vos poches, les quatre actions du quotidien — dépense, revenu, scan, virement — et vos transactions récentes.',
     mode: 'next',
-    cta: 'Suivant',
+    cta: 'On continue',
     route: '/(tabs)',
   },
   {
     id: 'tour-transactions',
     target: 'tab-transactions',
-    title: 'Historique',
-    body: 'L’historique de vos mouvements, les filtres et les dépenses prévues.',
+    title: 'L’historique de vos mouvements',
+    body: 'Chaque écriture validée arrive ici. Vous pouvez filtrer, ouvrir un détail, et suivre les dépenses prévues. C’est la mémoire de vos comptes — utile pour retrouver un paiement ou corriger une erreur.',
     mode: 'next',
-    cta: 'Suivant',
+    cta: 'On continue',
     route: '/(tabs)/transactions',
   },
   {
     id: 'tour-wallets',
     target: 'tab-wallets',
-    title: 'Poches',
-    body: 'Chaque compte a son solde. Ouvrez-en autant que vous avez de comptes.',
+    title: 'Vos poches, une par une',
+    body: 'Cet écran liste vos comptes et leur solde. Ouvrez-en autant que vous avez de sources d’argent : c’est ce qui évite de tout mélanger dans un seul chiffre.',
     mode: 'next',
-    cta: 'Suivant',
+    cta: 'On continue',
     route: '/(tabs)/wallets',
   },
   {
     id: 'tour-analytics',
     target: 'tab-analytics',
-    title: 'Analyse',
-    body: 'Le mois, les écarts et la répartition par catégorie. Une partie est Premium.',
+    title: 'Comprendre le mois',
+    body: 'Entrées, sorties, écarts, répartition par catégorie : ici vous voyez où va l’argent, pas seulement le solde. Une partie des analyses est réservée à Premium — vous en avez un mois offert.',
     mode: 'next',
-    cta: 'Suivant',
+    cta: 'On continue',
     route: '/(tabs)/analytics',
   },
   {
     id: 'tour-plus',
     target: 'tab-plus',
-    title: 'Plus',
-    body: 'Objectifs, file « À valider » (SMS, tickets, dictées), réglages et export.',
+    title: 'Le reste de l’app, au même endroit',
+    body: 'Objectifs d’épargne, file « À valider », réglages et export. C’est le menu pour tout ce qui n’est pas le quotidien, mais qui compte.',
     mode: 'next',
-    cta: 'Suivant',
+    cta: 'On continue',
     route: '/(tabs)/plus',
   },
   {
+    id: 'tour-feedback',
+    target: 'settings-feedback',
+    title: 'Un mot pour nous, ici',
+    body: 'Ce bouton « Votre avis », dans Réglages, sert à tout ce qui concerne l’app : un bug, une idée d’amélioration, un avis sur l’usage. Vous écrivez ici — le message nous arrive. C’est le bon endroit dès que quelque chose cloche ou vous manque.',
+    mode: 'next',
+    cta: 'C’est noté',
+    route: '/settings',
+  },
+  {
     id: 'success',
-    title: 'Tutoriel terminé',
-    body: 'Bienvenue dans Mes Poches. Suivez vos comptes, validez vos détections, et gardez le contrôle.',
+    title: 'Vous êtes prêt',
+    body: 'Vous avez une poche, une catégorie, et vous savez où trouver chaque écran. Désormais, saisissez, scannez ou validez ce que l’app détecte — rien n’est enregistré sans vous. Bienvenue dans Mes Poches.',
     mode: 'modal',
     cta: 'C’est parti',
   },
   {
     id: 'trial',
-    title: '1 mois Premium offert',
-    body: 'Scan, dictée, exports, budgets et objectifs : tout est débloqué pendant 30 jours.',
+    title: 'Un mois Premium, offert',
+    body: 'Pendant 30 jours, scan de tickets, dictée, exports, budgets et objectifs sont débloqués.',
     mode: 'modal',
     cta: 'Compris',
   },
@@ -264,20 +234,11 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready.current) return;
     if (step === 'pocket-tab' && pathname.includes('wallets') && !pathname.includes('new')) {
-      persist('pocket-add');
-    }
-    if (step === 'pocket-add' && pathname.includes('wallets/new')) {
-      persist('pocket-name');
-    }
-    if (
-      (step === 'pocket-image' || step === 'pocket-balance' || step === 'pocket-submit') &&
-      pathname.includes('wallets') &&
-      !pathname.includes('new')
-    ) {
-      persist('pocket-add');
+      persist('pocket-page');
+      router.navigate('/(tabs)/wallets/new');
     }
     if (step === 'category-tab' && pathname.includes('categories')) {
-      persist('category-name');
+      persist('category-page');
     }
   }, [pathname, persist, step]);
 

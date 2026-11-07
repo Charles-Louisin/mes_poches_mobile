@@ -1,48 +1,36 @@
 /**
  * Illustrations 3D pastel originales Mes Poches (bleu logo).
  */
-import { useEffect } from 'react';
-import { Image } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import { Image, View } from 'react-native';
+import { useLocalImageSource } from '@/lib/local-image';
 
 const SRC = {
-  balance: require('@/assets/illustrations/onboard-balance.png'),
-  capture: require('@/assets/illustrations/onboard-capture.png'),
-  insights: require('@/assets/illustrations/onboard-insights.png'),
-  premium: require('@/assets/illustrations/onboard-premium.png'),
-  wallet: require('@/assets/illustrations/empty-wallet.png'),
-  transactions: require('@/assets/illustrations/empty-transactions.png'),
-  pending: require('@/assets/illustrations/empty-pending.png'),
-  scan: require('@/assets/illustrations/empty-scan.png'),
+  balance: require('../../assets/illustrations/onboard-balance.png'),
+  capture: require('../../assets/illustrations/onboard-capture.png'),
+  insights: require('../../assets/illustrations/onboard-insights.png'),
+  premium: require('../../assets/illustrations/onboard-premium.png'),
+  wallet: require('../../assets/illustrations/empty-wallet.png'),
+  transactions: require('../../assets/illustrations/empty-transactions.png'),
+  pending: require('../../assets/illustrations/empty-pending.png'),
+  scan: require('../../assets/illustrations/empty-scan.png'),
 } as const;
 
 export type ArtName = keyof typeof SRC;
 
 export function SoftArt({ name, size = 220 }: { name: ArtName; size?: number }) {
-  const y = useSharedValue(0);
-
-  useEffect(() => {
-    y.value = withDelay(
-      180,
-      withRepeat(withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.sin) }), -1, true)
-    );
-  }, [y]);
-
-  const float = useAnimatedStyle(() => ({
-    transform: [{ translateY: -6 + y.value * 12 }],
-  }));
-
+  const source = useLocalImageSource(SRC[name]);
   return (
-    <Animated.View style={[{ width: size, height: size, overflow: 'visible' }, float]}>
-      <Image source={SRC[name]} style={{ width: size, height: size }} resizeMode="contain" />
-    </Animated.View>
+    <View collapsable={false} style={{ width: size, height: size }}>
+      {source ? (
+        <Image
+          source={source}
+          style={{ width: size, height: size }}
+          resizeMode="contain"
+          fadeDuration={0}
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
+    </View>
   );
 }
 

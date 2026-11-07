@@ -10,10 +10,11 @@ import {
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { pendingTransactionApi } from '@/lib/api';
-import { isAbortError, isPremiumRequiredError, isTimeoutError } from '@/lib/errors';
+import { blockIfQuotaFull, quotaPromptFromError } from '@/components/subscription/quota-prompt';
+import { getErrorMessage, isAbortError, isPremiumRequiredError, isTimeoutError } from '@/lib/errors';
 import { formatScanError } from '@/lib/scan-errors';
-import { enqueueJob, makeLocalPending, runOrQueue } from '@/lib/offline-queue';
 import { MicPermissionError, ensureMicPermission, openAppSettings } from '@/lib/mic-permission';
+import { isOnline } from '@/lib/network';
 import { notifyTransactionReady } from '@/lib/pending-notify';
 import { invalidateFinance } from '@/lib/query';
 import { abortVoiceCapture, audioUnavailableMessage, canUseAudioCapture, startVoiceCapture, stopVoiceCapture } from '@/lib/voice-capture';
@@ -36,16 +37,13 @@ type VoiceNoteContextValue = {
 
 const VoiceNoteContext = createContext<VoiceNoteContextValue | null>(null);
 
-function usesOnDeviceSpeech(): boolean {
-  return Platform.OS === 'web' || canUseNativeSpeech();
-}
-
 function usesFileCapture(): boolean {
-  return canUseAudioCapture() && !usesOnDeviceSpeech();
+  if (Platform.OS === 'web') return false;
+  return canUseAudioCapture();
 }
 
 export function VoiceNoteProvider({ children }: { children: ReactNode }) {
-  const { isPremium, requirePremium } = useAuth();
+  const { user, requirePremium } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -120,30 +118,12 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
       abortRef.current?.abort();
       abortRef.current = controller;
       try {
-        const queued = await runOrQueue(
-          () => pendingTransactionApi.voiceNote(payload, controller.signal),
-          async () => {
-            await enqueueJob({
-              kind: 'pending-voice',
-              data: payload,
-              preview: makeLocalPending({
-                source: 'voice',
-                document_type: 'voice_note',
-                type: 'expense',
-                amount: 0,
-                description: payload.text?.trim() || 'Note vocale (hors ligne)',
-                raw_text: payload.text ?? '',
-              }),
-            });
-          }
-        );
-        if (!queued.online) {
-          toast('Note vocale enregistrée hors ligne — synchro à la reconnexion', 'ok');
-          close();
-          router.push('/pending');
+        if (!(await isOnline())) {
+          setPhase('idle');
+          toast('La dictée nécessite une connexion. Réessayez en ligne.', 'err');
           return;
         }
-        const created = queued.value;
+        const created = await pendingTransactionApi.voiceNote(payload, controller.signal);
         if (controller.signal.aborted) return;
         const count = created.length;
         const expense = created.filter((t) => t.type === 'expense').length;
@@ -161,6 +141,10 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
         router.push('/pending');
       } catch (e) {
         if (controller.signal.aborted || isAbortError(e)) return;
+        if (quotaPromptFromError(e)) {
+          close();
+          return;
+        }
         if (isPremiumRequiredError(e)) {
           close();
           requirePremium(e.message);
@@ -184,13 +168,12 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
   );
 
   const beginHold = useCallback(async () => {
-    if (!isPremium) {
-      requirePremium('Note vocale réservée aux abonnés Premium');
+    if (blockIfQuotaFull(user?.quotas, 'voice')) {
       close();
       return;
     }
     if (submittingRef.current) return;
-    if (!usesOnDeviceSpeech() && !canUseAudioCapture()) {
+    if (!canUseNativeSpeech() && !canUseAudioCapture()) {
       toast(audioUnavailableMessage(), 'err');
       return;
     }
@@ -230,7 +213,7 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
                   void askMicSettings();
                   return;
                 }
-                toast(e instanceof Error ? e.message : speechUnavailableMessage(), 'err');
+                toast(getErrorMessage(e, speechUnavailableMessage()), 'err');
               });
               return;
             }
@@ -268,11 +251,11 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
         void askMicSettings();
         return;
       }
-      toast(e instanceof Error ? e.message : speechUnavailableMessage(), 'err');
+      toast(getErrorMessage(e, speechUnavailableMessage()), 'err');
     } finally {
       if (startPromiseRef.current === start) startPromiseRef.current = null;
     }
-  }, [askMicSettings, close, isPremium, requirePremium, stopSession, toast]);
+  }, [askMicSettings, close, requirePremium, stopSession, toast, user?.quotas]);
 
   const endHold = useCallback(
     async (cancelled: boolean) => {
@@ -302,7 +285,7 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
           await submitVoice({ audio: clip?.audio, mimeType: clip?.mimeType });
         } catch (e) {
           setPhase('idle');
-          toast(e instanceof Error ? e.message : 'Enregistrement impossible', 'err');
+          toast(getErrorMessage(e, 'Enregistrement impossible'), 'err');
         }
         return;
       }
@@ -326,10 +309,7 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
   }, [stopSession]);
 
   const startVoice = useCallback(() => {
-    if (!isPremium) {
-      requirePremium('Note vocale réservée aux abonnés Premium');
-      return false;
-    }
+    if (blockIfQuotaFull(user?.quotas, 'voice')) return false;
     void (async () => {
       await new Promise((r) => setTimeout(r, 450));
       const granted = await ensureMicPermission();
@@ -342,7 +322,7 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
       setOpen(true);
     })();
     return true;
-  }, [askMicSettings, isPremium, requirePremium]);
+  }, [askMicSettings, user?.quotas]);
 
   return (
     <VoiceNoteContext.Provider

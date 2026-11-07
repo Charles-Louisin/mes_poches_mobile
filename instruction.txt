@@ -1,0 +1,48 @@
+Le guide (coach) va te montrer uniquement le page pour ajouter une catégorie ou une poche mais il ne va plus faire suivre les étapes pour en créer
+
+Ta proposition de grille tarifaire à 4 niveaux (Gratuit, Pro, Pro+, Business) est très bien pensée. Elle crée une progression fluide et permet à chaque segment d'utilisateurs de trouver une offre adaptée sans te léser financièrement.
+Voici une analyse détaillée de cette structure, avec une attention particulière sur le piège de l'"illimité" pour les requêtes IA.
+1. Grille Tarifaire Recommandée
+Voici une façon concrète d'équilibrer les fonctionnalités, les coûts d'API et la valeur perçue pour chaque plan :
+| Caractéristique | 1. Gratuit (Découverte) | 2. Pro (Usage Normal) | 3. Pro+ (Usage Avancé) | 4. Business (Entreprises / PME) |
+|---|---|---|---|---|
+| Public cible | Nouveaux curieux | Particulier au quotidien | Freelance / Famille / Power User | Commerces, PME, Restaurants |
+| Tarif mensuel | 0 FCFA | 2 500 FCFA | 5 000 – 7 500 FCFA | 15 000 – 25 000 FCFA |
+| Nombre de Catégories / Poches | 5 max | 20 max | 50 max | Illimité |
+| Scans IA (OCR) | 3 / mois | 30 / mois | 100 / mois | Illimité* (ex: Fair Use 500/mois) |
+| Notes Vocales IA | 3 / mois | 30 / mois | 100 / mois | Illimité* (ex: Fair Use 500/mois) |
+| Comptes / Utilisateurs | 1 unique | 1 unique | 1 unique | Multi-utilisateurs (3 à 5 accès) |
+| Rôles & Permissions | Non | Non | Non | Oui (Admin, Caisse, Cuisine, Comptable) |
+| Exports & Rapports | Non | PDF simple | PDF / Excel | Excel détaillé + Pièces jointes comptables |
+2. Attention au Piège de l'« Illimité » pour l'IA
+Proposer de l'illimité sur les catégories et les fonctionnalités internes de l'application ne te coûte rien (quelques octets dans MongoDB). En revanche, l'illimité sur les appels IA (scans de reçus et transcription audio) comporte un vrai risque financier.
+Si une entreprise met un robot ou un employé pour scanner 2 000 factures par mois via ton API OpenAI / OpenRouter, tes coûts de jetons d'API vont s'envoler et dépasser le prix de leur abonnement mensuel.
+Comment sécuriser l'illimité ?
+ * Fixer un quota de précaution ("Fair Use Policy") : Dans les conditions d'utilisation du plan Business, précise que l'illimité est accordé dans le cadre d'un « usage raisonnable » (par exemple jusqu'à 500 ou 1 000 scans par mois). Pour 99 % des PME, 500 scans ressemblent à de l'illimité, mais cela te protège contre les abus extrêmes.
+ * Facturation au dépassement (Pay-as-you-go) : Une fois le quota Business (ex: 500 scans) atteint, l'application peut proposer d'acheter des "Packs de Scans" supplémentaires (ex: 100 scans pour 2 000 FCFA).
+3. Positionnement par Plan : Comment pousser à l'Upgrade ?
+Chaque plan doit inciter l'utilisateur à passer au niveau supérieur lorsque ses besoins grandissent :
+ * Gratuit ➔ Pro : L'utilisateur bloque rapidement avec 5 catégories ou 3 scans IA. Il passe à 2 500 FCFA pour gérer son budget mensuel confortablement.
+ * Pro ➔ Pro+ : L'utilisateur gère plusieurs projets personnels, une tontine ou une petite activité secondaire. 20 catégories deviennent trop justes et il consomme beaucoup de voix/scans. Il passe naturellement au plan Pro+.
+ * Pro+ ➔ Business : L'utilisateur n'est plus seul. Il a besoin de donner un accès à son gérant, à son comptable ou à son caissier, et il veut des rapports Excel professionnels. La valeur du Business ne repose plus seulement sur les quotas, mais sur le travail d'équipe et la gestion multi-rôles.
+4. Implémentation de la Logique de Vente et d'Upgrade dans l'App
+Pour que cette stratégie fonctionne sans friction, l'application doit être capable de :
+ * Afficher des alertes visuelles proactives :
+   Quand l'utilisateur est à 80 % de son quota (ex: 24/30 scans), affiche une jauge discrète : "Il vous reste 6 scans ce mois-ci".
+ * Rendre l'upgrade fluide :
+   Quand la limite est atteinte, au lieu d'un message d'erreur générique, affiche une modale comparative d'upgrade :
+   > "Vous avez atteint votre limite de 20 catégories du plan Pro. Passez au plan Pro+ pour débloquer jusqu'à 50 catégories !" avec un bouton de paiement direct (Mobile Money / Orange Money).
+   > 
+ * Mettre en avant la valeur Business :
+   Dans les paramètres de l'application, ajoute un onglet "Espace Entreprise / Équipe" verrouillé pour les plans inférieurs. En cliquant dessus, l'utilisateur voit une démo explicative : "Gérez votre restaurant à plusieurs : attribuez des rôles Caisse, Cuisine et Administrateur", avec un appel à l'action pour basculer sur l'offre Business.
+
+
+
+Pour l'extraction, sur *Extraire tout* il faut pouvoir extraire pour une certaine plage, 1 mois, 2 mois, 1 semaines, 2 semaines ou 1 ou plusieurs jours.
+
+Et dans les extractions dans extraire tout comme dans les extractions individuelles, il faut prendre compte des tâches des transactions s'il y en a, aujourd'hui il n'en tient pas compte.
+cette fonctionalite sera reserve au role entreprise, c'est lui et l'admin qui pourront extraire des plages s'ils le souhaite, les autres extrairont tout comme c'est configuré maintenant.
+
+dans mon dashboard je dois pouvoir faire en sorte que de changer les differents abonnement des users, les upgrade et downgrade a ma guise, je dois aussi pouvoir rendre le compte d'un user avec un forfait a vie (il garde son role mais n'a plus a payer d'abonnement a vie), je peux le faire recommencer a payer aussi.
+dans mon dashboard, ne m'affiche plus les montants des poches, ni meme les noms des poches, je veux laisser la confidentialites des donnees, je peux voir combien de categories et de poches et son parcours, son nombre de transaction et le type a un utilisateur mais n'affiche plus les montants.
+

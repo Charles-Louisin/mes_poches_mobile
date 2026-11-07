@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { plannedExpenseApi, walletApi, type PlannedExpense } from '@/lib/api';
 import { invalidateFinance } from '@/lib/query';
-import { isPremiumRequiredError } from '@/lib/errors';
-import { groupTransactionsByDate } from '@/lib/utils';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
+import { defaultOpenDayKey, groupTransactionsByDate } from '@/lib/utils';
 import { useConfirm } from '@/contexts/confirm';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
@@ -20,6 +21,7 @@ import { PlannedItem } from '@/components/ui/planned-item';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { TransactionItem } from '@/components/ui/transaction-item';
+import { PressScale } from '@/components/ui/press-scale';
 import { ReceiptArt } from '@/components/illustrations';
 import { color, radius, type as font } from '@/theme/tokens';
 
@@ -35,6 +37,8 @@ export default function WalletDetailScreen() {
   const [editingPlan, setEditingPlan] = useState<PlannedExpense | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [openDays, setOpenDays] = useState<Set<string>>(new Set());
+  const [openReady, setOpenReady] = useState(false);
 
   const q = useQuery({
     queryKey: ['wallet', id],
@@ -44,6 +48,27 @@ export default function WalletDetailScreen() {
 
   const wallet = q.data?.wallet;
   const groups = groupTransactionsByDate(q.data?.transactions ?? []);
+
+  useEffect(() => {
+    setOpenReady(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (groups.length && !openReady) {
+      const key = defaultOpenDayKey(groups.map((g) => g.dayKey));
+      setOpenDays(key ? new Set([key]) : new Set());
+      setOpenReady(true);
+    }
+  }, [groups, openReady]);
+
+  const toggleDay = (dayKey: string) => {
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayKey)) next.delete(dayKey);
+      else next.add(dayKey);
+      return next;
+    });
+  };
 
   const startEdit = () => {
     if (wallet) {
@@ -68,7 +93,7 @@ export default function WalletDetailScreen() {
         router.push('/subscription');
         return;
       }
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setSaving(false);
     }
@@ -92,7 +117,7 @@ export default function WalletDetailScreen() {
       toast('Poche fermée', 'ok');
       router.replace('/(tabs)/wallets');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setRemoving(false);
     }
@@ -113,7 +138,7 @@ export default function WalletDetailScreen() {
       await q.refetch();
       toast('Échéance retirée', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setCancellingId(null);
     }
@@ -185,19 +210,30 @@ export default function WalletDetailScreen() {
       ) : null}
 
       <Text style={styles.sec}>Mouvements</Text>
-      {groups.map((g) => (
-        <View key={g.dayKey} style={{ marginBottom: 16 }}>
-          <Text style={styles.day}>{g.label}</Text>
-          {g.items.map((t) => (
-            <TransactionItem
-              key={t._id}
-              tx={t}
-              formatAmount={formatAmount}
-              onPress={() => router.push(`/transactions/${t._id}`)}
-            />
-          ))}
-        </View>
-      ))}
+      {groups.map((g) => {
+        const isOpen = openDays.has(g.dayKey);
+        return (
+          <View key={g.dayKey} style={styles.dayCard}>
+            <PressScale onPress={() => toggleDay(g.dayKey)} style={styles.dayBtn} accessibilityRole="button">
+              {isOpen ? <ChevronUp color={color.primary} size={20} /> : <ChevronDown color={color.textMuted} size={20} />}
+              <Text style={styles.day}>{g.label}</Text>
+              <View style={styles.count}>
+                <Text style={styles.countT}>{g.items.length}</Text>
+              </View>
+            </PressScale>
+            {isOpen
+              ? g.items.map((t) => (
+                  <TransactionItem
+                    key={t._id}
+                    tx={t}
+                    formatAmount={formatAmount}
+                    onPress={() => router.push(`/transactions/${t._id}`)}
+                  />
+                ))
+              : null}
+          </View>
+        );
+      })}
       {(q.data?.transactions ?? []).length === 0 ? (
         <EmptyState
           illustration={<ReceiptArt size={180} />}
@@ -241,6 +277,21 @@ const styles = StyleSheet.create({
     color: color.text,
     marginBottom: 10,
   },
-  day: { fontFamily: font.sansMed, fontSize: 13, color: color.textSecondary, marginBottom: 4 },
+  dayCard: {
+    backgroundColor: color.surface,
+    borderRadius: radius.card,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    marginBottom: 14,
+  },
+  dayBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14 },
+  day: { fontFamily: font.sansSemi, fontSize: 14, color: color.text, flex: 1 },
+  count: {
+    backgroundColor: color.surfaceSecondary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countT: { fontFamily: font.sansMed, fontSize: 12, color: color.textSecondary },
   meta: { fontFamily: font.sans, color: color.textMuted },
 });

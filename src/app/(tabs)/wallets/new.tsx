@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { View } from 'react-native';
-import { router } from 'expo-router';
-import { walletApi } from '@/lib/api';
-import { invalidateFinance } from '@/lib/query';
-import { isPremiumRequiredError } from '@/lib/errors';
-import { useToast } from '@/contexts/toast';
-import { useTutorial } from '@/contexts/tutorial';
 import { TutorialTarget } from '@/components/tutorial/tutorial-target';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
+import { useToast } from '@/contexts/toast';
+import { useTutorial } from '@/contexts/tutorial';
+import { walletApi } from '@/lib/api';
+import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
+import { invalidateFinance } from '@/lib/query';
 import { track } from '@/lib/telemetry';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { View } from 'react-native';
 
 export default function NewWalletScreen() {
   const toast = useToast();
@@ -38,23 +39,19 @@ export default function NewWalletScreen() {
       await invalidateFinance();
       toast('Poche créée', 'ok');
       track('wallet_create', { screen: 'wallets_new', props: { element: 'create' } });
-      if (
-        step === 'pocket-submit' ||
-        step === 'pocket-name' ||
-        step === 'pocket-image' ||
-        step === 'pocket-balance'
-      ) {
+      if (step === 'pocket-page') {
         afterPocketCreated();
       } else {
         router.replace('/(tabs)/wallets');
       }
     } catch (err) {
+      if (quotaPromptFromError(err)) return;
       if (isPremiumRequiredError(err)) {
         toast(err.message, 'info');
         router.push('/subscription');
         return;
       }
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronRight } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react-native';
 import type { TransactionLineItem } from '@/lib/api';
 import { color, radius, type as font } from '@/theme/tokens';
 import { PressScale } from './press-scale';
@@ -21,6 +21,7 @@ export function LineItems({
   defaultOpen = false,
   onDescriptionChange,
   onAmountChange,
+  onRemove,
 }: {
   items?: TransactionLineItem[];
   formatAmount: (n: number) => string;
@@ -28,6 +29,7 @@ export function LineItems({
   defaultOpen?: boolean;
   onDescriptionChange?: (index: number, description: string) => void;
   onAmountChange?: (index: number, amount: string) => void;
+  onRemove?: (index: number) => void;
 }) {
   const list = items ?? [];
   const [open, setOpen] = useState(defaultOpen || !!editable);
@@ -69,6 +71,18 @@ export function LineItems({
                     keyboardType="decimal-pad"
                     editable={!!onAmountChange}
                   />
+                  {onRemove && list.length > 1 ? (
+                    <PressScale
+                      onPress={() => {
+                        setDrafts({});
+                        onRemove(idx);
+                      }}
+                      style={styles.trash}
+                      accessibilityRole="button"
+                      accessibilityLabel="Supprimer la ligne">
+                      <Trash2 color={color.danger} size={18} />
+                    </PressScale>
+                  ) : null}
                 </View>
               ) : (
                 <Text style={styles.read}>
@@ -116,4 +130,12 @@ const styles = StyleSheet.create({
   },
   inputLabel: { flex: 1.4 },
   inputAmt: { width: 96, textAlign: 'right' },
+  trash: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#FDECEC',
+  },
 });

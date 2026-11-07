@@ -1,13 +1,22 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useLocalImageSource } from '@/lib/local-image';
 import { color, type as font } from '@/theme/tokens';
 
-const MARK = require('@/assets/brand/mark.png');
+const MARK = require('../../../assets/brand/mark.png');
 
 export function BrandMark({ size = 64, bezel: _bezel = true }: { size?: number; bezel?: boolean }) {
+  const source = useLocalImageSource(MARK);
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <Image source={MARK} style={{ width: size, height: size, borderRadius: size / 2 }} resizeMode="cover" />
+      {source ? (
+        <Image
+          source={source}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          resizeMode="cover"
+          fadeDuration={0}
+        />
+      ) : null}
     </View>
   );
 }
@@ -43,9 +52,12 @@ export function BrandWatermark({
   opacity?: number;
   style?: object;
 }) {
+  const source = useLocalImageSource(MARK);
   return (
     <Animated.View pointerEvents="none" style={[{ position: 'absolute', opacity }, style]}>
-      <Image source={MARK} style={{ width: size, height: size }} resizeMode="contain" />
+      {source ? (
+        <Image source={source} style={{ width: size, height: size }} resizeMode="contain" fadeDuration={0} />
+      ) : null}
     </Animated.View>
   );
 }

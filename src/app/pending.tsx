@@ -5,7 +5,8 @@ import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { pendingTransactionApi, walletApi, categoryApi, sanitizeLineItems, type PendingTransaction } from '@/lib/api';
 import { defaultOpenDayKey, formatDateTime, groupTransactionsByDate, idOf, nameOf } from '@/lib/utils';
 import { invalidateFinance } from '@/lib/query';
-import { localPendings } from '@/lib/offline-queue';
+import { getErrorMessage } from '@/lib/errors';
+import { localPendings, patchLocalPending } from '@/lib/offline-queue';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
 import { Button } from '@/components/ui/button';
@@ -68,6 +69,33 @@ function draftFrom(item: PendingTransaction): Draft {
   };
 }
 
+function aiItemsForSave(items: Draft['items']) {
+  const cleaned = items.filter((line) => (Number(line.amount) || 0) > 0);
+  if (cleaned.length <= 1) return undefined;
+  return sanitizeLineItems(cleaned);
+}
+
+function typeForPick(
+  pickId: string,
+  items: PendingTransaction[],
+  editingId: string | null,
+  draft: Draft | null
+): 'income' | 'expense' {
+  if (editingId === pickId && draft) return draft.type;
+  const item = items.find((i) => i._id === pickId);
+  return item?.type ?? 'expense';
+}
+
+function categoryStillValid(
+  categoryId: string,
+  type: 'income' | 'expense',
+  categories: { _id: string; type?: 'income' | 'expense' }[]
+) {
+  if (!categoryId) return true;
+  const cat = categories.find((c) => c._id === categoryId);
+  return !cat?.type || cat.type === type;
+}
+
 export default function PendingScreen() {
   const { formatAmount } = useCurrency();
   const toast = useToast();
@@ -75,7 +103,7 @@ export default function PendingScreen() {
   const [pick, setPick] = useState<{ id: string; kind: 'wallet' | 'cat' } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null);
+  const [acting, setActing] = useState<Record<string, 'ok' | 'no' | 'save'>>({});
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [openReady, setOpenReady] = useState(false);
   const saving = useRef(false);
@@ -83,12 +111,14 @@ export default function PendingScreen() {
   const q = useQuery({
     queryKey: ['pending'],
     queryFn: async () => {
-      const [remote, wallets, categories, local] = await Promise.all([
+      const [remote, wallets, incomeCategories, expenseCategories, local] = await Promise.all([
         pendingTransactionApi.getAll('pending').catch(() => [] as PendingTransaction[]),
         walletApi.getAll().catch(() => []),
-        categoryApi.getAll().catch(() => []),
+        categoryApi.getAll('income').catch(() => []),
+        categoryApi.getAll('expense').catch(() => []),
         localPendings(),
       ]);
+      const categories = [...incomeCategories, ...expenseCategories];
       return { items: [...local, ...remote], wallets, categories };
     },
   });
@@ -122,8 +152,18 @@ export default function PendingScreen() {
   };
 
   const saveDraft = async (id: string, data: Draft) => {
-    if (id.startsWith('local-')) {
-      toast('Cette détection sera synchronisée à la reconnexion', 'info');
+    if (id.startsWith('local-') || id.startsWith('native-')) {
+      const n = parseFloat(data.amount.replace(',', '.'));
+      await patchLocalPending(id, {
+        amount: n > 0 ? n : undefined,
+        type: data.type,
+        description: data.description,
+        date: data.date,
+        wallet_id: data.walletId || undefined,
+        category_id: data.categoryId || null,
+      });
+      await q.refetch();
+      toast('Modifications enregistrées hors ligne', 'ok');
       return;
     }
     if (saving.current) return;
@@ -137,12 +177,12 @@ export default function PendingScreen() {
         date: data.date,
         wallet_id: data.walletId || undefined,
         category_id: data.categoryId || null,
-        ai_items: data.items.length ? sanitizeLineItems(data.items) : undefined,
+        ai_items: aiItemsForSave(data.items),
       });
       await q.refetch();
       toast('Modifications enregistrées', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
       throw err;
     } finally {
       saving.current = false;
@@ -160,13 +200,20 @@ export default function PendingScreen() {
   };
 
   const saveEdit = async (item: PendingTransaction) => {
-    if (!draft) return;
+    if (!draft || acting[item._id] === 'save') return;
+    setActing((prev) => ({ ...prev, [item._id]: 'save' }));
     try {
       await saveDraft(item._id, draft);
       setEditingId(null);
       setDraft(null);
     } catch {
       /* toast déjà affiché */
+    } finally {
+      setActing((prev) => {
+        const next = { ...prev };
+        delete next[item._id];
+        return next;
+      });
     }
   };
 
@@ -175,8 +222,9 @@ export default function PendingScreen() {
       toast('Attendez la synchronisation hors ligne', 'info');
       return;
     }
-    if (actingId) return;
-    setActingId(item._id);
+    const key = item._id;
+    if (acting[key] === kind) return;
+    setActing((prev) => ({ ...prev, [key]: kind }));
     try {
       if (kind === 'ok') {
         const d = editingId === item._id && draft ? draft : draftFrom(item);
@@ -193,7 +241,7 @@ export default function PendingScreen() {
           category_id: d.categoryId || null,
           description: d.description,
           date: d.date,
-          ai_items: d.items.length ? sanitizeLineItems(d.items) : undefined,
+          ai_items: aiItemsForSave(d.items),
         });
       } else await pendingTransactionApi.reject(item._id);
       track(kind === 'ok' ? 'capture_validate' : 'capture_reject', {
@@ -205,11 +253,24 @@ export default function PendingScreen() {
       if (editingId === item._id) cancelEdit();
       toast(kind === 'ok' ? 'Transaction validée' : 'Ignoré', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
-      setActingId(null);
+      setActing((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
+
+  const pickTxType =
+    pick && q.data?.items
+      ? typeForPick(pick.id, q.data.items, editingId, draft)
+      : 'expense';
+
+  const categoriesForPick = (q.data?.categories ?? []).filter(
+    (c) => !c.type || c.type === pickTxType
+  );
 
   const assign = async (value: string) => {
     if (!pick) return;
@@ -220,8 +281,12 @@ export default function PendingScreen() {
           walletId: pick.kind === 'wallet' ? value : draft.walletId,
           categoryId: pick.kind === 'cat' ? value : draft.categoryId,
         });
-      } else if (pick.id.startsWith('local-')) {
-        toast('Choisissez la poche après synchronisation', 'info');
+      } else if (pick.id.startsWith('local-') || pick.id.startsWith('native-')) {
+        await patchLocalPending(
+          pick.id,
+          pick.kind === 'wallet' ? { wallet_id: value } : { category_id: value || null }
+        );
+        await q.refetch();
       } else {
         await pendingTransactionApi.update(
           pick.id,
@@ -231,7 +296,7 @@ export default function PendingScreen() {
       }
       setPick(null);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     }
   };
 
@@ -296,10 +361,30 @@ export default function PendingScreen() {
             {open ? (
               <View style={{ gap: 12, marginTop: 12 }}>
                 <View style={styles.kinds}>
-                  <PressScale onPress={() => setDraft({ ...d, type: 'expense' })} style={[styles.kind, d.type === 'expense' && styles.kindOn]}>
+                  <PressScale
+                    onPress={() =>
+                      setDraft({
+                        ...d,
+                        type: 'expense',
+                        categoryId: categoryStillValid(d.categoryId, 'expense', q.data?.categories ?? [])
+                          ? d.categoryId
+                          : '',
+                      })
+                    }
+                    style={[styles.kind, d.type === 'expense' && styles.kindOn]}>
                     <Text style={[styles.kindT, d.type === 'expense' && styles.kindTon]}>Dépense</Text>
                   </PressScale>
-                  <PressScale onPress={() => setDraft({ ...d, type: 'income' })} style={[styles.kind, d.type === 'income' && styles.kindOn]}>
+                  <PressScale
+                    onPress={() =>
+                      setDraft({
+                        ...d,
+                        type: 'income',
+                        categoryId: categoryStillValid(d.categoryId, 'income', q.data?.categories ?? [])
+                          ? d.categoryId
+                          : '',
+                      })
+                    }
+                    style={[styles.kind, d.type === 'income' && styles.kindOn]}>
                     <Text style={[styles.kindT, d.type === 'income' && styles.kindTon]}>Revenu</Text>
                   </PressScale>
                 </View>
@@ -364,24 +449,37 @@ export default function PendingScreen() {
                       }
                     : undefined
                 }
+                onRemove={
+                  open
+                    ? (index) => {
+                        const items = d.items.filter((_, i) => i !== index);
+                        const total = items.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+                        setDraft({ ...d, items, amount: String(total) });
+                      }
+                    : undefined
+                }
               />
             ) : null}
 
             {open ? (
               <View style={styles.actions}>
-                <Button label="Enregistrer" compact onPress={() => void saveEdit(item)} loading={actingId === item._id} />
-                <Button label="Annuler" compact variant="line" onPress={cancelEdit} disabled={!!actingId} />
+                <Button
+                  label="Enregistrer"
+                  compact
+                  onPress={() => void saveEdit(item)}
+                  loading={acting[item._id] === 'save'}
+                />
+                <Button label="Annuler" compact variant="line" onPress={cancelEdit} />
               </View>
             ) : (
               <View style={styles.actions}>
-                <Button label="Modifier" compact variant="line" onPress={() => startEdit(item)} disabled={!!actingId} />
+                <Button label="Modifier" compact variant="line" onPress={() => startEdit(item)} />
                 <Button
                   label="Valider"
                   compact
                   loadingLabel="…"
                   onPress={() => void act(item, 'ok')}
-                  loading={actingId === item._id}
-                  disabled={!!actingId && actingId !== item._id}
+                  loading={acting[item._id] === 'ok'}
                 />
                 <Button
                   label="Ignorer"
@@ -389,8 +487,7 @@ export default function PendingScreen() {
                   variant="line"
                   loadingLabel="…"
                   onPress={() => void act(item, 'no')}
-                  loading={actingId === item._id}
-                  disabled={!!actingId && actingId !== item._id}
+                  loading={acting[item._id] === 'no'}
                 />
               </View>
             )}
@@ -417,7 +514,10 @@ export default function PendingScreen() {
           />
         ) : (
           <OptionList
-            options={[{ value: '', label: 'Sans catégorie' }, ...(q.data?.categories ?? []).map((c) => ({ value: c._id, label: c.name }))]}
+            options={[
+              { value: '', label: 'Sans catégorie' },
+              ...categoriesForPick.map((c) => ({ value: c._id, label: c.name })),
+            ]}
             onChange={(v) => void assign(v)}
           />
         )}

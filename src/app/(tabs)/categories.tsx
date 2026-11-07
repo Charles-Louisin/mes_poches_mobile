@@ -1,31 +1,33 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { StyleSheet, Text, View } from 'react-native';
-import { Pencil, Trash2 } from 'lucide-react-native';
-import { categoryApi, type Category } from '@/lib/api';
-import { PLAN_LIMITS } from '@/lib/planLimits';
-import { invalidateFinance } from '@/lib/query';
-import { isPremiumRequiredError } from '@/lib/errors';
-import { useAuth } from '@/contexts/auth';
-import { useConfirm } from '@/contexts/confirm';
-import { useToast } from '@/contexts/toast';
-import { useTutorial } from '@/contexts/tutorial';
 import { TutorialTarget } from '@/components/tutorial/tutorial-target';
 import { Button } from '@/components/ui/button';
 import { EntityAvatar } from '@/components/ui/entity-avatar';
 import { Field } from '@/components/ui/field';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
-import { PressScale } from '@/components/ui/press-scale';
+import { useAuth } from '@/contexts/auth';
+import { useConfirm } from '@/contexts/confirm';
+import { useToast } from '@/contexts/toast';
+import { useTutorial } from '@/contexts/tutorial';
+import { categoryApi, type Category } from '@/lib/api';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
+import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
+import { TIER_DEFS } from '@/lib/planLimits';
+import { invalidateFinance } from '@/lib/query';
 import { color, type as font } from '@/theme/tokens';
+import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { Pencil, Trash2 } from 'lucide-react-native';
+import { useRef, useState } from 'react';
+import { StyleSheet, Text, View, type ScrollView } from 'react-native';
 
 export default function CategoriesScreen() {
   const { isPremium } = useAuth();
   const { step, afterCategoryCreated } = useTutorial();
   const toast = useToast();
   const confirm = useConfirm();
+  const scrollRef = useRef<ScrollView>(null);
   const q = useQuery({ queryKey: ['categories'], queryFn: () => categoryApi.getAll() });
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'expense' | 'income'>('expense');
@@ -45,6 +47,7 @@ export default function CategoriesScreen() {
     setName(category.name);
     setKind(category.type);
     setImageUrl(category.image_url ?? null);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
   };
 
   const save = async () => {
@@ -61,15 +64,16 @@ export default function CategoriesScreen() {
       } else {
         await categoryApi.create({ name: name.trim(), type: kind, image_url: imageUrl });
         toast('Catégorie créée', 'ok');
-        if (step === 'category-submit' || step === 'category-name') afterCategoryCreated();
+        if (step === 'category-page') afterCategoryCreated();
       }
       await invalidateFinance();
       resetForm();
     } catch (err) {
+      if (quotaPromptFromError(err)) return;
       if (isPremiumRequiredError(err)) {
         toast(err.message, 'info');
         router.push('/subscription');
-      } else toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      } else toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setLoading(false);
     }
@@ -89,7 +93,7 @@ export default function CategoriesScreen() {
       await invalidateFinance();
       toast('Catégorie retirée', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     }
   };
 
@@ -111,10 +115,10 @@ export default function CategoriesScreen() {
   );
 
   return (
-    <Screen scroll onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
+    <Screen scroll scrollRef={scrollRef} onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
       <ScreenHeader title="Catégories" />
       {!isPremium ? (
-        <Text style={styles.limit}>Plan gratuit : {PLAN_LIMITS.FREE_MAX_CATEGORIES_PER_TYPE} par type.</Text>
+        <Text style={styles.limit}>Plan gratuit : {TIER_DEFS.free.categories} catégories au total.</Text>
       ) : null}
       <ImageUpload
         value={imageUrl}

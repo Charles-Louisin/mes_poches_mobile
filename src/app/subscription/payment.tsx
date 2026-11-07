@@ -1,17 +1,17 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { subscriptionApi } from '@/lib/api';
-import { SUBSCRIPTION_PLANS, type BillingPeriod } from '@/lib/planLimits';
-import { isSubscriptionPaymentEnabled } from '@/lib/subscription';
-import { useToast } from '@/contexts/toast';
-import { PlanCards } from '@/components/subscription/plan-cards';
 import { Button } from '@/components/ui/button';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
-import { PressScale } from '@/components/ui/press-scale';
+import { useToast } from '@/contexts/toast';
+import { subscriptionApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/errors';
+import { TIER_DEFS, priceFor, type BillingPeriod, type PaidTier } from '@/lib/planLimits';
+import { isSubscriptionPaymentEnabled } from '@/lib/subscription';
 import { color, type as font } from '@/theme/tokens';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 const METHODS = [
   { id: 'all' as const, label: 'Toutes' },
@@ -20,12 +20,14 @@ const METHODS = [
 ];
 
 export default function PaymentScreen() {
-  const { period } = useLocalSearchParams<{ period?: string }>();
+  const { period, tier: tierParam } = useLocalSearchParams<{ period?: string; tier?: string }>();
   const toast = useToast();
+  const tier: PaidTier = tierParam === 'pro_plus' || tierParam === 'business' ? tierParam : 'pro';
   const [billing, setBilling] = useState<BillingPeriod>(period === 'yearly' ? 'yearly' : 'monthly');
   const [method, setMethod] = useState<(typeof METHODS)[number]['id']>('all');
   const [loading, setLoading] = useState(false);
-  const plan = SUBSCRIPTION_PLANS[billing];
+  const amount = priceFor(tier, billing);
+  const plan = TIER_DEFS[tier];
 
   const pay = async () => {
     if (!isSubscriptionPaymentEnabled()) {
@@ -34,11 +36,11 @@ export default function PaymentScreen() {
     }
     setLoading(true);
     try {
-      const { paymentUrl, transactionId } = await subscriptionApi.createCheckout(billing, method);
+      const { paymentUrl, transactionId } = await subscriptionApi.createCheckout(billing, method, tier);
       await WebBrowser.openBrowserAsync(paymentUrl);
       router.replace(`/subscription/success?transactionId=${encodeURIComponent(transactionId)}`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Paiement impossible', 'err');
+      toast(getErrorMessage(err, 'Paiement impossible'), 'err');
     } finally {
       setLoading(false);
     }
@@ -47,8 +49,18 @@ export default function PaymentScreen() {
   return (
     <Screen scroll>
       <ScreenHeader title="Règlement" back />
-      <Text style={styles.lede}>Choisissez votre formule, puis le canal de paiement.</Text>
-      <PlanCards selected={billing} onSelect={setBilling} />
+      <Text style={styles.lede}>
+        {plan.label} — {amount.toLocaleString('fr-FR')} FCFA {billing === 'yearly' ? 'pour un an' : 'par mois'}.
+      </Text>
+      <View style={styles.row}>
+        {(['monthly', 'yearly'] as BillingPeriod[]).map((id) => (
+          <PressScale key={id} onPress={() => setBilling(id)} style={[styles.chip, billing === id && styles.chipOn]}>
+            <Text style={[styles.chipT, billing === id && styles.chipTon]}>
+              {id === 'yearly' ? `Annuel · ${priceFor(tier, 'yearly').toLocaleString('fr-FR')}` : `Mensuel · ${plan.priceXaf.toLocaleString('fr-FR')}`}
+            </Text>
+          </PressScale>
+        ))}
+      </View>
       <Text style={styles.sec}>Canal</Text>
       <View style={styles.row}>
         {METHODS.map((m) => (
@@ -59,7 +71,7 @@ export default function PaymentScreen() {
       </View>
       <View style={{ height: 24 }} />
       <Button
-        label={`Payer ${plan.priceXaf.toLocaleString('fr-FR')} XAF`}
+        label={`Payer ${amount.toLocaleString('fr-FR')} FCFA`}
         loadingLabel="Ouverture…"
         onPress={() => void pay()}
         loading={loading}

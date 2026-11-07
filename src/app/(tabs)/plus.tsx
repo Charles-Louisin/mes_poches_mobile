@@ -5,22 +5,35 @@ import { GoldDiamond } from '@/components/ui/gold-diamond';
 import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { color, type as font } from '@/theme/tokens';
+import { isMoneyCaptureEnabled } from '@/lib/sms-monitor';
 import { track } from '@/lib/telemetry';
 
 const LINKS = [
   { href: '/objectifs', label: 'Objectifs', hint: 'Budgets, épargne, récurrences', pro: true },
-  { href: '/pending', label: 'À valider', hint: 'SMS, tickets, dictées' },
+  { href: '/pending', label: 'À valider', hint: 'Tickets, dictées, propositions' },
+  { href: '/capture-setup', label: 'Détection Mobile Money', hint: 'Autoriser la lecture des notifications' },
   { href: '/settings', label: 'Réglages', hint: 'Devise, export, compte' },
+  { href: '/feedback', label: 'Votre avis', hint: 'Bugs, idées, retours d’usage' },
   { href: '/about', label: 'À propos', hint: 'Mentions légales, Mes Poches' },
 ] as const;
 
 export default function PlusScreen() {
-  const { isPremium } = useAuth();
+  const { isPremium, user } = useAuth();
+  const visible = LINKS.filter((item) => item.href !== '/capture-setup' || isMoneyCaptureEnabled());
+  const settingsAt = visible.findIndex((item) => item.href === '/settings');
+  const insertAt = settingsAt >= 0 ? settingsAt + 1 : visible.length;
+  const links = [
+    ...visible.slice(0, insertAt),
+    ...(user?.role === 'admin'
+      ? [{ href: '/admin-messages', label: 'Messages reçus', hint: 'Retours des utilisateurs' } as const]
+      : []),
+    ...visible.slice(insertAt),
+  ];
   return (
     <Screen scroll>
       <Text style={styles.kicker}>Plus</Text>
       <Text style={styles.title}>Outils{'\n'}et compte</Text>
-      {LINKS.map((item, i) => (
+      {links.map((item, i) => (
         <PressScale
           key={item.href}
           onPress={() => {

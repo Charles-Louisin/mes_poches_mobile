@@ -1,61 +1,63 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import { AlertCircle, CheckCircle2, Smartphone } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/contexts/toast';
 import {
-  canUseSmsNative,
-  checkNotificationListener,
+  canUseMoneyCapture,
+  getSmsListenerStatus,
   isAndroidNative,
-  isExpoGo,
+  isMoneyCaptureEnabled,
   openSmsNotificationSettings,
-  requestSmsPermission,
+  rebindSmsListener,
 } from '@/lib/sms-monitor';
 import { color, type as font } from '@/theme/tokens';
 
+type ListenerStatus = { enabled: boolean; connected: boolean };
+
 export function SmsPermissionSettings() {
   const toast = useToast();
-  const [listenerEnabled, setListenerEnabled] = useState(false);
+  const [listener, setListener] = useState<ListenerStatus>({ enabled: false, connected: false });
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      setListenerEnabled(await checkNotificationListener());
+      await rebindSmsListener();
+      setListener(await getSmsListenerStatus());
     } catch {
-      setListenerEnabled(false);
+      setListener({ enabled: false, connected: false });
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (!isMoneyCaptureEnabled()) {
+      setLoading(false);
+      return;
+    }
     void refresh();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => sub.remove();
   }, [refresh]);
 
-  if (!isAndroidNative()) {
-    return (
-      <Card>
-        <View style={styles.head}>
-          <Smartphone color={color.textMuted} size={18} />
-          <Text style={styles.title}>Détection SMS</Text>
-        </View>
-        <Text style={styles.body}>Disponible uniquement sur Android. Sur iOS, utilisez le scan ou la dictée.</Text>
-      </Card>
-    );
+  if (!isAndroidNative() || !isMoneyCaptureEnabled()) {
+    return null;
   }
 
-  if (isExpoGo() || !canUseSmsNative()) {
+  if (!canUseMoneyCapture()) {
     return (
       <Card>
         <View style={styles.head}>
           <Smartphone color={color.primary} size={18} />
-          <Text style={styles.title}>Détection SMS</Text>
+          <Text style={styles.title}>Détection Mobile Money</Text>
         </View>
         <Text style={styles.body}>
-          La lecture des SMS Mobile Money demande un development build Android (pas Expo Go). Une fois l’app compilée,
-          le jeton de session est transmis au récepteur natif.
+          Disponible sur la version Play Store. Scannez un ticket ou dictez une transaction en attendant.
         </Text>
       </Card>
     );
@@ -66,18 +68,17 @@ export function SmsPermissionSettings() {
       <Card>
         <View style={styles.head}>
           <ActivityIndicator color={color.primary} />
-          <Text style={styles.body}>Vérification des permissions…</Text>
+          <Text style={styles.body}>Vérification de l’accès…</Text>
         </View>
       </Card>
     );
   }
 
-  const activate = async () => {
+  const activateNotifications = async () => {
     setChecking(true);
     try {
-      await requestSmsPermission();
       await openSmsNotificationSettings();
-      toast('Activez SMS et l’accès aux notifications, puis revenez', 'info');
+      toast('Cochez MES POCHES, puis revenez ici', 'info');
       setTimeout(() => void refresh(), 2000);
     } catch {
       toast('Impossible d’ouvrir les paramètres', 'err');
@@ -86,15 +87,17 @@ export function SmsPermissionSettings() {
     }
   };
 
+  const listenerOk = listener.enabled && listener.connected;
+
   return (
     <View style={{ gap: 12 }}>
       <Card>
         <View style={styles.row}>
           <View style={styles.head}>
             <Smartphone color={color.primary} size={18} />
-            <Text style={styles.title}>Détection SMS</Text>
+            <Text style={styles.title}>Détection Mobile Money</Text>
           </View>
-          {listenerEnabled ? (
+          {listenerOk ? (
             <View style={styles.badgeOk}>
               <CheckCircle2 color={color.success} size={14} />
               <Text style={styles.ok}>Activée</Text>
@@ -107,22 +110,19 @@ export function SmsPermissionSettings() {
           )}
         </View>
         <Text style={styles.body}>
-          {listenerEnabled
-            ? 'Les SMS et les notifications des apps de transfert, banques et fintech sont captés automatiquement.'
-            : 'Activez la détection pour capturer les SMS Orange Money, MTN, et les apps bancaires / fintech.'}
+          {listenerOk
+            ? 'Les notifications des apps de transfert, banques et Messages sont captées automatiquement.'
+            : 'Autorisez l’accès aux notifications, puis cochez MES POCHES.'}
         </Text>
       </Card>
 
-      {!listenerEnabled ? (
-        <Button
-          label="Activer la détection SMS"
-          loadingLabel="Configuration…"
-          onPress={() => void activate()}
-          loading={checking}
-        />
-      ) : (
-        <Button label="Gérer les permissions" variant="secondary" onPress={() => void openSmsNotificationSettings()} />
-      )}
+      <Button
+        label="Autoriser l’accès aux notifications"
+        variant={listenerOk ? 'secondary' : 'primary'}
+        loadingLabel="Ouverture…"
+        onPress={() => void activateNotifications()}
+        loading={checking}
+      />
     </View>
   );
 }

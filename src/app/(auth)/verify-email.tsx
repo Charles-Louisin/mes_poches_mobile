@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useAuth } from '@/contexts/auth';
 import { useToast } from '@/contexts/toast';
 import { resendCodeRequest } from '@/lib/auth';
-import { ApiError } from '@/lib/errors';
+import { ApiError, getErrorMessage } from '@/lib/errors';
 import { BrandMark } from '@/components/brand/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -29,7 +29,7 @@ export default function VerifyEmailScreen() {
       toast('Compte vérifié', 'ok');
       router.replace('/(tabs)');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Code invalide', 'err');
+      toast(getErrorMessage(err, 'Code invalide'), 'err');
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export default function VerifyEmailScreen() {
         const sec = (err.data as { cooldownSeconds?: number } | undefined)?.cooldownSeconds ?? 60;
         setCooldown(sec);
       }
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     }
   };
 

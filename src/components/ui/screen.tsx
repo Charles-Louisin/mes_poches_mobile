@@ -1,7 +1,14 @@
-import { type ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { type ReactNode, type RefObject } from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useKeyboardBottomInset } from '@/hooks/use-keyboard-bottom-inset';
 import { color, space } from '@/theme/tokens';
 
 export function Screen({
@@ -14,6 +21,8 @@ export function Screen({
   refreshing,
   backdrop: _backdrop = false,
   enter = true,
+  scrollRef,
+  keyboardAware: _keyboardAware,
 }: {
   children: ReactNode;
   scroll?: boolean;
@@ -24,39 +33,44 @@ export function Screen({
   refreshing?: boolean;
   backdrop?: boolean;
   enter?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
+  /** Conservé pour les écrans qui le passaient déjà. Le remontage est toujours actif. */
+  keyboardAware?: boolean;
 }) {
+  const keyboardInset = useKeyboardBottomInset();
   const body = enter ? (
-    <Animated.View style={styles.grow}>
-      <Animated.View entering={FadeIn.duration(480)} style={styles.grow}>
-        {children}
-      </Animated.View>
+    <Animated.View entering={FadeIn.duration(480)} style={scroll ? undefined : styles.flex}>
+      {children}
     </Animated.View>
   ) : (
     children
   );
 
+  const inner = scroll ? (
+    <ScrollView
+      ref={scrollRef}
+      style={styles.flex}
+      contentContainerStyle={[padded && styles.pad, { paddingBottom: 48, flexGrow: 1 }]}
+      keyboardShouldPersistTaps="always"
+      keyboardDismissMode="none"
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={color.primary} />
+        ) : undefined
+      }>
+      {body}
+    </ScrollView>
+  ) : (
+    <View style={[styles.flex, padded && styles.pad]}>{body}</View>
+  );
+
   return (
     <View style={[styles.root, style]}>
-      <SafeAreaView style={styles.flex} edges={edges}>
-        {scroll ? (
-          <ScrollView
-            contentContainerStyle={[padded && styles.pad, { paddingBottom: 48, flexGrow: 1 }]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              onRefresh ? (
-                <RefreshControl
-                  refreshing={!!refreshing}
-                  onRefresh={onRefresh}
-                  tintColor={color.primary}
-                />
-              ) : undefined
-            }>
-            {body}
-          </ScrollView>
-        ) : (
-          <View style={[styles.flex, padded && styles.pad]}>{body}</View>
-        )}
+      <SafeAreaView
+        style={[styles.flex, keyboardInset > 0 && { paddingBottom: keyboardInset }]}
+        edges={edges}>
+        {inner}
       </SafeAreaView>
     </View>
   );

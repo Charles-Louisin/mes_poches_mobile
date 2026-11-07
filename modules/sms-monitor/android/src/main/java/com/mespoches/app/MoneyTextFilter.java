@@ -1,5 +1,7 @@
 package com.mespoches.app;
 
+import android.content.Context;
+import android.provider.Telephony;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
@@ -30,9 +32,17 @@ public final class MoneyTextFilter {
     private static final Set<String> MONEY_PACKAGES = new HashSet<>(Arrays.asList(
         "com.orange.money",
         "com.orange.omcm",
+        "com.orange.om",
+        "com.orange.om.cm",
+        "com.orange.money.africa",
         "cm.orange.om",
+        "cm.orange.orangemoney",
         "com.mtn.momo",
         "com.mtn.momocm",
+        "com.mtn.momo.cm",
+        "com.mtn.momo.app",
+        "cm.mtn.momo",
+        "com.mtncameroon.mobilemoney",
         "com.wave.personal",
         "com.ecobank.mobile",
         "com.ubagroup.uba",
@@ -78,15 +88,34 @@ public final class MoneyTextFilter {
     }
 
     public static boolean isSmsPackage(String packageName) {
+        return isSmsPackage(null, packageName);
+    }
+
+    public static boolean isSmsPackage(Context context, String packageName) {
         if (packageName == null) return false;
-        return packageName.equals("com.android.messaging") ||
-               packageName.equals("com.google.android.apps.messaging") ||
-               packageName.equals("com.samsung.android.messaging") ||
-               packageName.equals("com.sonyericsson.conversations") ||
-               packageName.equals("com.motorola.messaging") ||
-               packageName.equals("com.android.mms") ||
-               packageName.contains(".mms") ||
-               packageName.contains(".sms");
+        if (context != null) {
+            try {
+                String def = Telephony.Sms.getDefaultSmsPackage(context);
+                if (def != null && packageName.equalsIgnoreCase(def)) return true;
+            } catch (Exception ignored) {
+                /* API indisponible */
+            }
+        }
+        String p = packageName.toLowerCase(Locale.ROOT);
+        return p.equals("com.android.messaging")
+            || p.equals("com.google.android.apps.messaging")
+            || p.equals("com.samsung.android.messaging")
+            || p.equals("com.sonyericsson.conversations")
+            || p.equals("com.motorola.messaging")
+            || p.equals("com.android.mms")
+            || p.equals("com.transsion.smartmessage")
+            || p.equals("com.huawei.message")
+            || p.equals("com.hihonor.mms")
+            || p.contains(".mms")
+            || p.contains(".sms")
+            || p.contains("smartmessage")
+            || p.endsWith(".messaging")
+            || p.contains(".apps.messaging");
     }
 
     public static boolean isMoneyPackage(String packageName) {
@@ -99,14 +128,20 @@ public final class MoneyTextFilter {
         return p.contains("momo")
             || p.contains("orangemoney")
             || p.contains("mobilemoney")
+            || p.contains("mobile.money")
+            || (p.contains("orange") && (p.contains("money") || p.contains(".om")))
             || p.contains(".bank")
             || p.contains("banque");
     }
 
     /** SMS messagerie + apps de transfert / banque / fintech — jamais WhatsApp, Gmail, etc. */
     public static boolean isAllowedCapturePackage(String packageName) {
+        return isAllowedCapturePackage(null, packageName);
+    }
+
+    public static boolean isAllowedCapturePackage(Context context, String packageName) {
         if (isBlockedPackage(packageName)) return false;
-        return isSmsPackage(packageName) || isMoneyPackage(packageName);
+        return isSmsPackage(context, packageName) || isMoneyPackage(packageName);
     }
 
     public static boolean isMoneyRelated(String raw) {

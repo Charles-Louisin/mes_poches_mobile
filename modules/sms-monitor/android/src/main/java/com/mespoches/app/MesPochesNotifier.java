@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -15,9 +16,11 @@ import expo.modules.smsmonitor.R;
 public final class MesPochesNotifier {
     private static final String CHANNEL_ID = "mes_poches_transactions";
     private static final String REMINDER_CHANNEL = "mes_poches_reminders";
+    private static final String MESSAGE_CHANNEL = "mes_poches_messages";
     private static final int ID_PROCESSING = 8001;
     private static final int ID_READY = 8002;
     private static final int ID_REMINDER = 8003;
+    private static final int ID_INBOX = 8004;
 
     private MesPochesNotifier() {}
 
@@ -32,6 +35,7 @@ public final class MesPochesNotifier {
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.setPackage(ctx.getPackageName());
         }
+        intent.setData(Uri.parse("mespoches://pending"));
         intent.putExtra("openPending", true);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
@@ -63,6 +67,7 @@ public final class MesPochesNotifier {
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.setPackage(ctx.getPackageName());
         }
+        if (pendingCount > 0) intent.setData(Uri.parse("mespoches://pending"));
         intent.putExtra("openPending", pendingCount > 0);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
@@ -89,6 +94,36 @@ public final class MesPochesNotifier {
         Bitmap mark = appMark(ctx);
         if (mark != null) builder.setLargeIcon(mark);
         notificationManager(ctx).notify(ID_REMINDER, builder.build());
+    }
+
+    public static void showInbox(Context ctx, String title, String message, String deepLink) {
+        ensureMessageChannel(ctx);
+        Intent intent = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        if (intent == null) {
+            intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.setPackage(ctx.getPackageName());
+        }
+        String link = deepLink == null || deepLink.isEmpty() ? "mespoches://feedback" : deepLink;
+        intent.setData(Uri.parse(link));
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pendingIntent = PendingIntent.getActivity(ctx, 4, intent, flags);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, MESSAGE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_mp)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent);
+        Bitmap mark = appMark(ctx);
+        if (mark != null) builder.setLargeIcon(mark);
+        notificationManager(ctx).notify(ID_INBOX, builder.build());
     }
 
     public static void cancelProcessing(Context ctx) {
@@ -128,6 +163,18 @@ public final class MesPochesNotifier {
             NotificationManager.IMPORTANCE_DEFAULT
         );
         channel.setDescription("Rappel de 20 h pour enregistrer ou valider vos transactions");
+        nm.createNotificationChannel(channel);
+    }
+
+    private static void ensureMessageChannel(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = notificationManager(ctx);
+        NotificationChannel channel = new NotificationChannel(
+            MESSAGE_CHANNEL,
+            "Messages",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("Nouveaux messages de la messagerie Mes Poches");
         nm.createNotificationChannel(channel);
     }
 }

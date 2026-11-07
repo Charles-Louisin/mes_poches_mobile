@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, type as font, radius, space } from '@/theme/tokens';
@@ -32,14 +32,17 @@ export function ToastHost({
   const bg = tone === 'err' ? color.danger : tone === 'ok' ? color.success : color.primary;
 
   return (
-    <Animated.View
-      key={id}
-      entering={FadeInDown.springify().damping(18)}
-      exiting={FadeOutUp.duration(220)}
+    <View
       pointerEvents="none"
       style={[styles.wrap, { top: Math.max(insets.top, 12) + 8 }]}>
-      <Text style={[styles.text, { backgroundColor: bg }]}>{message}</Text>
-    </Animated.View>
+      <Animated.View
+        key={id}
+        entering={FadeInDown.springify().damping(18)}
+        exiting={FadeOutUp.duration(220)}
+        style={styles.inner}>
+        <Text style={[styles.text, { backgroundColor: bg }]}>{message}</Text>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -50,6 +53,10 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 99999,
     elevation: 99999,
+    alignItems: 'center',
+  },
+  inner: {
+    maxWidth: '100%',
     alignItems: 'center',
   },
   text: {

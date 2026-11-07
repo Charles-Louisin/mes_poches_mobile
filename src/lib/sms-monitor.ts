@@ -3,9 +3,12 @@ import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import {
   clearAuthToken,
+  getNotificationListenerStatus,
   isNotificationListenerEnabled,
   isSmsMonitorAvailable,
+  openAppDetailsSettings,
   openNotificationAccessSettings,
+  rebindNotificationListener,
   storeAuthToken,
 } from 'sms-monitor';
 import { getApiUrl } from './api-config';
@@ -22,6 +25,15 @@ export function canUseSmsNative(): boolean {
   return isAndroidNative() && isSmsMonitorAvailable();
 }
 
+/** Lecture SMS / notifications : uniquement le build Play Store (profil EAS production). */
+export function isMoneyCaptureEnabled(): boolean {
+  return isAndroidNative() && process.env.EXPO_PUBLIC_MONEY_CAPTURE === 'true';
+}
+
+export function canUseMoneyCapture(): boolean {
+  return canUseSmsNative() && isMoneyCaptureEnabled();
+}
+
 export async function syncSmsMonitorToken(token: string | undefined): Promise<void> {
   if (!canUseSmsNative()) return;
   try {
@@ -36,7 +48,7 @@ export async function syncSmsMonitorToken(token: string | undefined): Promise<vo
 }
 
 export async function checkNotificationListener(): Promise<boolean> {
-  if (!canUseSmsNative()) return false;
+  if (!canUseMoneyCapture()) return false;
   try {
     return await isNotificationListenerEnabled();
   } catch {
@@ -44,8 +56,37 @@ export async function checkNotificationListener(): Promise<boolean> {
   }
 }
 
+export async function getSmsListenerStatus(): Promise<{ enabled: boolean; connected: boolean }> {
+  if (!canUseMoneyCapture()) return { enabled: false, connected: false };
+  try {
+    return await getNotificationListenerStatus();
+  } catch {
+    return { enabled: false, connected: false };
+  }
+}
+
+export async function rebindSmsListener(): Promise<void> {
+  if (!canUseMoneyCapture()) return;
+  try {
+    await rebindNotificationListener();
+  } catch {
+    /* module absent / process isolé pas encore prêt */
+  }
+}
+
+export async function openRestrictedSettings(): Promise<void> {
+  if (canUseSmsNative()) {
+    await openAppDetailsSettings();
+    return;
+  }
+  if (!isAndroidNative()) return;
+  await IntentLauncher.startActivityAsync('android.settings.APPLICATION_DETAILS_SETTINGS', {
+    data: 'package:com.mespoches.app',
+  });
+}
+
 export async function requestSmsPermission(): Promise<boolean> {
-  if (!isAndroidNative()) return false;
+  if (!isMoneyCaptureEnabled()) return false;
   try {
     const rationale = {
       title: 'SMS Mobile Money',
@@ -77,6 +118,7 @@ export async function requestSmsPermission(): Promise<boolean> {
 }
 
 export async function openSmsNotificationSettings(): Promise<void> {
+  if (!isMoneyCaptureEnabled()) return;
   if (canUseSmsNative()) {
     await openNotificationAccessSettings();
     return;

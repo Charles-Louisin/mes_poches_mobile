@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { ToastHost, type ToastTone } from '@/components/ui/toast-host';
 import { getLastScreen, track } from '@/lib/telemetry';
 
@@ -32,11 +33,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={value}>
-      {children}
-      <ToastHost id={id} message={message} tone={tone} onDone={onDone} />
+      <View style={styles.root} pointerEvents="box-none">
+        {children}
+        <ToastHost id={id} message={message} tone={tone} onDone={onDone} />
+      </View>
     </ToastContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 export function useToast() {
   const ctx = useContext(ToastContext);

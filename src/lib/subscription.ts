@@ -1,8 +1,7 @@
 import type { MeUser } from './api';
 import { PREMIUM_REQUIRED_CODE } from './planLimits';
-import { PremiumRequiredError } from './errors';
 
-export { PremiumRequiredError, isPremiumRequiredError } from './errors';
+export { isPremiumRequiredError, PremiumRequiredError } from './errors';
 export { PREMIUM_REQUIRED_CODE };
 
 export function isPremiumUser(user: MeUser | null | undefined): boolean {

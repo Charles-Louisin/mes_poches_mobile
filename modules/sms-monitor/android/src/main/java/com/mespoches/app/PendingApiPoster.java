@@ -79,7 +79,7 @@ public final class PendingApiPoster {
             return;
         }
         // Échec / non reconnu → autoriser une nouvelle tentative (notif MM mise à jour)
-        MoneyNotificationListener.releaseFingerprint(fingerprint);
+        MoneyNotificationListener.releaseFingerprint(ctx, fingerprint);
         if (code == 422) {
             Log.d(TAG, "Contenu non reconnu (HTTP 422)");
         } else if (code > 0) {
@@ -153,7 +153,7 @@ public final class PendingApiPoster {
         } catch (Exception e) {
             Log.e(TAG, "POST failed", e);
             MesPochesNotifier.cancelProcessing(ctx);
-            MoneyNotificationListener.releaseFingerprint(fingerprint);
+            MoneyNotificationListener.releaseFingerprint(ctx, fingerprint);
             return -1;
         } finally {
             if (conn != null) conn.disconnect();

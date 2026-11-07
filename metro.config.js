@@ -6,7 +6,7 @@ const { URL } = require('url');
 
 const BACKEND_API = (
   process.env.EXPO_PUBLIC_API_URL ||
-  'https://mespochesbackend-production-9bfe.up.railway.app/api'
+  'https://mespochesbackend-production-dafd.up.railway.app/api'
 ).replace(/\/$/, '');
 
 function proxyToBackend(req, res) {
@@ -44,6 +44,19 @@ function proxyToBackend(req, res) {
 
 const config = getDefaultConfig(__dirname);
 
+const existingBlock = config.resolver.blockList;
+config.resolver.blockList = [
+  ...(Array.isArray(existingBlock) ? existingBlock : existingBlock ? [existingBlock] : []),
+  /[\\/]android[\\/](?:app[\\/])?build[\\/]/,
+  /[\\/]android[\\/]\.gradle[\\/]/,
+  /[\\/]android[\\/]\.cxx[\\/]/,
+  /[\\/]\.transforms[\\/]/,
+  /[\\/]\.git[\\/]/,
+];
+if (process.platform === 'win32') {
+  config.maxWorkers = 2;
+}
+
 const FILE_SYSTEM = {
   'expo-file-system': path.resolve(__dirname, 'node_modules/expo-file-system/src/index.ts'),
   'expo-file-system/legacy': path.resolve(
@@ -52,11 +65,19 @@ const FILE_SYSTEM = {
   ),
 };
 
+const assetExts = new Set(config.resolver.assetExts ?? []);
+assetExts.add('wasm');
+config.resolver.assetExts = [...assetExts];
+config.resolver.sourceExts = (config.resolver.sourceExts ?? []).filter((ext) => ext !== 'wasm');
+
 const previousResolve = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (typeof moduleName === 'string' && moduleName.includes('wa-sqlite.wasm')) {
+    return { type: 'empty' };
+  }
   if (typeof moduleName === 'string' && moduleName.startsWith('@/assets/')) {
-    const filePath = path.resolve(__dirname, 'assets', moduleName.slice('@/assets/'.length));
-    return context.resolveRequest(context, filePath, platform);
+    const rel = './assets/' + moduleName.slice('@/assets/'.length).replace(/\\/g, '/');
+    return context.resolveRequest(context, rel, platform);
   }
   const mapped = FILE_SYSTEM[moduleName];
   if (mapped) {
@@ -68,6 +89,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+config.transformer = {
+  ...config.transformer,
+  assetPlugins: [...(config.transformer?.assetPlugins ?? []), path.resolve(__dirname, 'plugins/metro-forward-slash-assets.js')],
+};
+
 const previous = config.server?.enhanceMiddleware;
 
 config.server = {
@@ -75,6 +101,9 @@ config.server = {
   enhanceMiddleware: (metroMiddleware, server) => {
     const inner = typeof previous === 'function' ? previous(metroMiddleware, server) : metroMiddleware;
     return (req, res, next) => {
+      if (req.url) {
+        req.url = req.url.replace(/%5C/gi, '/').replace(/\\/g, '/');
+      }
       if (req.url && req.url.startsWith('/__mp_api')) {
         if (req.method === 'OPTIONS') {
           res.writeHead(204, {

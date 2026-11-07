@@ -4,8 +4,9 @@ import { GoldDiamond } from './gold-diamond';
 import { Chip } from './chip';
 import { useState } from 'react';
 import { type ExportFormat } from '@/lib/api';
-import { shareExport } from '@/lib/download';
-import { isPremiumRequiredError } from '@/lib/errors';
+import { exportSavedToast, shareExport } from '@/lib/download';
+import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
 import { useAuth } from '@/contexts/auth';
 import { useToast } from '@/contexts/toast';
 import { color } from '@/theme/tokens';
@@ -17,29 +18,34 @@ const FORMATS: { key: ExportFormat; label: string; Icon: typeof CsvIcon }[] = [
 ];
 
 export function TxExportRow({ transactionId }: { transactionId: string }) {
-  const { isPremium, requirePremium } = useAuth();
+  const { isPremium, requirePremium, user } = useAuth();
+  const formats = user?.exportFormats?.length
+    ? FORMATS.filter((f) => user.exportFormats!.includes(f.key))
+    : FORMATS;
   const toast = useToast();
-  const [busy, setBusy] = useState<ExportFormat | null>(null);
+  const [busy, setBusy] = useState<Partial<Record<ExportFormat, boolean>>>({});
 
   const run = async (format: ExportFormat) => {
-    if (busy) return;
+    if (busy[format]) return;
     if (!isPremium) {
       toast(`Export ${format.toUpperCase()} — Premium requis`, 'info');
       requirePremium();
       return;
     }
-    setBusy(format);
+    setBusy((prev) => ({ ...prev, [format]: true }));
     try {
-      await shareExport(
+      const dest = await shareExport(
         `/export/transactions/${transactionId}?format=${format}`,
         `transaction-${transactionId.slice(-8)}.${format}`
       );
-      toast('Enregistré dans Téléchargements', 'ok');
+      const saved = exportSavedToast(dest);
+      toast(saved.message, saved.tone);
     } catch (err) {
+      if (quotaPromptFromError(err)) return;
       if (isPremiumRequiredError(err)) requirePremium();
-      else toast(err instanceof Error ? err.message : 'Erreur export', 'err');
+      else toast(getErrorMessage(err, 'Erreur export'), 'err');
     } finally {
-      setBusy(null);
+      setBusy((prev) => ({ ...prev, [format]: false }));
     }
   };
 
@@ -51,13 +57,12 @@ export function TxExportRow({ transactionId }: { transactionId: string }) {
         </View>
       ) : null}
       <View style={styles.row}>
-        {FORMATS.map((f) => (
+        {formats.map((f) => (
           <Chip
             key={f.key}
             label={f.label}
             icon={<f.Icon size={14} />}
-            loading={busy === f.key}
-            disabled={!!busy && busy !== f.key}
+            loading={!!busy[f.key]}
             onPress={() => void run(f.key)}
           />
         ))}

@@ -1,5 +1,5 @@
 export const PLAN_LIMITS = {
-  FREE_MAX_CATEGORIES_PER_TYPE: 10,
+  FREE_MAX_CATEGORIES_PER_TYPE: 5,
   FREE_HISTORY_MONTHS: 3,
 } as const;
 
@@ -7,21 +7,88 @@ export const PLAN_LIMITS = {
 export const TRIAL_MONTHS = 1;
 
 export const PREMIUM_REQUIRED_CODE = 'PREMIUM_REQUIRED';
+export const QUOTA_REACHED_CODE = 'QUOTA_REACHED';
 
+export const SUBSCRIPTION_TIERS = ['free', 'pro', 'pro_plus', 'business'] as const;
+export type SubscriptionTier = (typeof SUBSCRIPTION_TIERS)[number];
+export type PaidTier = Exclude<SubscriptionTier, 'free'>;
+
+type TierDef = {
+  label: string;
+  priceXaf: number;
+  categories: number | null;
+  wallets: number | null;
+  scans: number;
+  voice: number;
+  perks: string[];
+};
+
+export const TIER_DEFS: Record<SubscriptionTier, TierDef> = {
+  free: {
+    label: 'Gratuit',
+    priceXaf: 0,
+    categories: 5,
+    wallets: 5,
+    scans: 3,
+    voice: 3,
+    perks: ['5 catégories et 5 poches', '3 scans et 3 notes vocales / mois'],
+  },
+  pro: {
+    label: 'Pro',
+    priceXaf: 2500,
+    categories: 20,
+    wallets: 20,
+    scans: 30,
+    voice: 30,
+    perks: ['20 catégories et 20 poches', '30 scans et 30 notes vocales / mois', 'Export PDF'],
+  },
+  pro_plus: {
+    label: 'Pro+',
+    priceXaf: 6000,
+    categories: 50,
+    wallets: 50,
+    scans: 100,
+    voice: 100,
+    perks: ['50 catégories et 50 poches', '100 scans et 100 notes vocales / mois', 'Export PDF, Excel et CSV'],
+  },
+  business: {
+    label: 'Business',
+    priceXaf: 20000,
+    categories: null,
+    wallets: null,
+    scans: 500,
+    voice: 500,
+    perks: [
+      'Catégories et poches illimitées',
+      '500 scans et 500 notes vocales / mois',
+      'Exports et plages de dates',
+    ],
+  },
+};
+
+/** Ancien couple mensuel / annuel du plan Pro, encore utilisé par le paiement. */
 export const SUBSCRIPTION_PLANS = {
   monthly: {
     id: 'monthly' as const,
     label: 'Mensuel',
-    priceXaf: 2500,
+    priceXaf: TIER_DEFS.pro.priceXaf,
     periodLabel: '/ mois',
   },
   yearly: {
     id: 'yearly' as const,
     label: 'Annuel',
-    priceXaf: 24000,
+    priceXaf: Math.round(TIER_DEFS.pro.priceXaf * 12 * 0.8),
     periodLabel: '/ an',
     savingsLabel: 'Économisez 20 %',
   },
 } as const;
 
 export type BillingPeriod = keyof typeof SUBSCRIPTION_PLANS;
+
+export function yearlyPrice(tier: PaidTier): number {
+  return Math.round(TIER_DEFS[tier].priceXaf * 12 * 0.8);
+}
+
+export function priceFor(tier: PaidTier, period: BillingPeriod): number {
+  return period === 'yearly' ? yearlyPrice(tier) : TIER_DEFS[tier].priceXaf;
+}

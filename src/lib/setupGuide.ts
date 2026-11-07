@@ -1,20 +1,16 @@
-import { STORAGE_KEYS, getString, setString, remove } from './storage';
+import { STORAGE_KEYS, getString, remove, setString } from './storage';
 
 export type TutorialStep =
   | 'pocket-tab'
-  | 'pocket-add'
-  | 'pocket-name'
-  | 'pocket-image'
-  | 'pocket-balance'
-  | 'pocket-submit'
+  | 'pocket-page'
   | 'category-tab'
-  | 'category-name'
-  | 'category-submit'
+  | 'category-page'
   | 'tour-home'
   | 'tour-transactions'
   | 'tour-wallets'
   | 'tour-analytics'
   | 'tour-plus'
+  | 'tour-feedback'
   | 'success'
   | 'trial'
   | 'done'
@@ -25,12 +21,19 @@ export type SetupStep = TutorialStep;
 const LEGACY: Record<string, TutorialStep> = {
   wallet: 'pocket-tab',
   'nav-wallets': 'pocket-tab',
-  'wallets-add': 'pocket-add',
-  'wallet-form': 'pocket-name',
+  'wallets-add': 'pocket-page',
+  'wallet-form': 'pocket-page',
+  'pocket-add': 'pocket-page',
+  'pocket-name': 'pocket-page',
+  'pocket-image': 'pocket-page',
+  'pocket-balance': 'pocket-page',
+  'pocket-submit': 'category-tab',
   category: 'category-tab',
   'nav-categories': 'category-tab',
-  'categories-add': 'category-name',
-  'category-form': 'category-name',
+  'categories-add': 'category-page',
+  'category-form': 'category-page',
+  'category-name': 'category-page',
+  'category-submit': 'tour-home',
 };
 
 type SetupListener = () => void;

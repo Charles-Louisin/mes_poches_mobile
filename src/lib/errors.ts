@@ -36,20 +36,51 @@ export function isTimeoutError(err: unknown): boolean {
   );
 }
 
+export const NETWORK_ERROR_MESSAGE = 'Pas de connexion. Vérifiez Internet et réessayez.';
+
+const NETWORK_RE =
+  /unknownhost|unable to resolve host|no address associated with hostname|failed to connect|econnrefused|enotfound|eai_again|sockettimeout|network request failed|failed to fetch|fetch failed|load failed|networkerror|internet(?: is)? (?:unreachable|disconnected)|cleartext http traffic|javax\.net\.ssl|sslhandshake|connection (?:refused|reset|timed out)|timed out:|host is unresolved/i;
+
+export function isNetworkFailure(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === 'AbortError') return false;
+  if (err instanceof ApiError && err.code === 'NETWORK') return true;
+  return NETWORK_RE.test(err.message);
+}
+
+function looksTechnical(raw: string): boolean {
+  return (
+    raw.length > 140 ||
+    /java\.|unknownhost|exception:|at com\.|stack|statuscode|http\s*\d{3}|econn|enotfound|undefined is not/i.test(
+      raw
+    )
+  );
+}
+
 export function getErrorMessage(err: unknown, fallback = 'Une erreur est survenue'): string {
   const raw =
     err instanceof ApiError && err.message
       ? err.message
       : err instanceof Error
         ? err.message
-        : '';
-  if (/0\.50 in balance for audio|openrouter_credits|limit_source/i.test(raw)) {
-    return 'La dictée audio passe par Whisper (OpenRouter), qui exige au moins 0,50 $ de crédit — le scan et le briefing n’ont pas ce seuil. Rechargez OpenRouter, ou dictez via la reconnaissance vocale de l’appareil.';
+        : typeof err === 'string'
+          ? err
+          : '';
+
+  if (!raw.trim()) return fallback;
+  if (isNetworkFailure(err) || NETWORK_RE.test(raw)) return NETWORK_ERROR_MESSAGE;
+  if (/0\.50 in balance for audio|openrouter_credits|limit_source|insufficient.?quota|quota.?exceeded/i.test(raw)) {
+    return 'Quota IA atteint. Réessayez dans quelques minutes.';
   }
-  if (err instanceof ApiError && err.message) return err.message;
-  if (err instanceof Error && /failed to fetch|network request failed|load failed|networkerror/i.test(err.message)) {
-    return 'Impossible de joindre le serveur. Vérifiez votre connexion.';
+  if (/model.*(not found|introuvable|does not exist)|no endpoints found/i.test(raw)) {
+    return 'Service d’analyse momentanément indisponible. Réessayez.';
   }
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
+  if (err instanceof ApiError && err.code === 'TIMEOUT') {
+    return err.message;
+  }
+  if (err instanceof ApiError && err.message && !looksTechnical(err.message)) {
+    return err.message;
+  }
+  if (looksTechnical(raw)) return fallback;
+  return raw;
 }

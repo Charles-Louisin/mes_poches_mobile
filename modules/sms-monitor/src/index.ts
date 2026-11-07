@@ -3,11 +3,21 @@ import { requireOptionalNativeModule } from 'expo';
 type SmsMonitorNative = {
   storeAuthToken(token: string, apiUrl?: string | null): Promise<void>;
   clearAuthToken(): Promise<void>;
-  isNotificationListenerEnabled(): Promise<{ enabled: boolean }>;
+  isNotificationListenerEnabled(): Promise<{ enabled: boolean; connected?: boolean }>;
+  rebindNotificationListener(): Promise<void>;
   openNotificationAccessSettings(): Promise<void>;
+  openAppDetailsSettings(): Promise<void>;
   showTransactionReady(message: string): Promise<void>;
   saveToDownloads(sourcePath: string, filename: string, mimeType?: string | null): Promise<{ uri: string }>;
+  recognizeText(sourcePath: string): Promise<{ text: string }>;
+  listOfflineQueue(): Promise<Array<{ url?: string; json?: string; fingerprint?: string }>>;
+  flushOfflineQueue(): Promise<void>;
   scheduleDailyReminder(): Promise<void>;
+  scheduleInboxPoll(): Promise<void>;
+  checkInboxNow(): Promise<void>;
+  setInboxCursor(lastAt: string): Promise<void>;
+  getInboxCursor(): Promise<{ lastAt?: string }>;
+  touchInboxHeartbeat(): Promise<void>;
   addListener?(
     event: string,
     listener: (payload: { alreadyValidated?: boolean }) => void
@@ -36,9 +46,31 @@ export async function isNotificationListenerEnabled(): Promise<boolean> {
   return Boolean(status?.enabled);
 }
 
+export async function getNotificationListenerStatus(): Promise<{
+  enabled: boolean;
+  connected: boolean;
+}> {
+  if (!native) return { enabled: false, connected: false };
+  const status = await native.isNotificationListenerEnabled();
+  return {
+    enabled: Boolean(status?.enabled),
+    connected: Boolean(status?.connected),
+  };
+}
+
+export async function rebindNotificationListener(): Promise<void> {
+  if (!native?.rebindNotificationListener) return;
+  await native.rebindNotificationListener();
+}
+
 export async function openNotificationAccessSettings(): Promise<void> {
   if (!native) return;
   await native.openNotificationAccessSettings();
+}
+
+export async function openAppDetailsSettings(): Promise<void> {
+  if (!native?.openAppDetailsSettings) return;
+  await native.openAppDetailsSettings();
 }
 
 export async function showTransactionReady(message: string): Promise<void> {
@@ -49,6 +81,32 @@ export async function showTransactionReady(message: string): Promise<void> {
 export async function scheduleDailyReminder(): Promise<void> {
   if (!native?.scheduleDailyReminder) return;
   await native.scheduleDailyReminder();
+}
+
+export async function scheduleInboxPoll(): Promise<void> {
+  if (!native?.scheduleInboxPoll) return;
+  await native.scheduleInboxPoll();
+}
+
+export async function checkNativeInboxNow(): Promise<void> {
+  if (!native?.checkInboxNow) return;
+  await native.checkInboxNow();
+}
+
+export async function setNativeInboxCursor(lastAt: string): Promise<void> {
+  if (!native?.setInboxCursor) return;
+  await native.setInboxCursor(lastAt);
+}
+
+export async function getNativeInboxCursor(): Promise<string> {
+  if (!native?.getInboxCursor) return '';
+  const result = await native.getInboxCursor();
+  return result?.lastAt?.trim() ?? '';
+}
+
+export async function touchNativeInboxHeartbeat(): Promise<void> {
+  if (!native?.touchInboxHeartbeat) return;
+  await native.touchInboxHeartbeat();
 }
 
 export function subscribePendingDuplicate(
@@ -69,4 +127,24 @@ export async function saveToDownloads(
   if (!native?.saveToDownloads) return null;
   const result = await native.saveToDownloads(sourcePath, filename, mimeType ?? null);
   return result?.uri ?? null;
+}
+
+export async function recognizeText(sourcePath: string): Promise<string | null> {
+  if (!native?.recognizeText) return null;
+  const result = await native.recognizeText(sourcePath);
+  const text = result?.text?.trim() ?? '';
+  return text || null;
+}
+
+export async function listOfflineQueue(): Promise<
+  Array<{ url?: string; json?: string; fingerprint?: string }>
+> {
+  if (!native?.listOfflineQueue) return [];
+  const result = await native.listOfflineQueue();
+  return Array.isArray(result) ? result : [];
+}
+
+export async function flushNativeOfflineQueue(): Promise<void> {
+  if (!native?.flushOfflineQueue) return;
+  await native.flushOfflineQueue();
 }

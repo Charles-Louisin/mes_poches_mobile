@@ -1,4 +1,22 @@
-import { useFonts, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit';
+import { AppUpdatePrompt } from '@/components/app-update-prompt';
+import { FeedbackPushListener } from '@/components/feedback-push-listener';
+import { PendingDuplicateListener } from '@/components/pending-duplicate-listener';
+import { PhoneFrame } from '@/components/phone-frame';
+import { SessionGuard } from '@/components/session-guard';
+import { TelemetryListener } from '@/components/telemetry-listener';
+import { QuotaPromptHost } from '@/components/subscription/quota-prompt';
+import { TutorialOverlay } from '@/components/tutorial/tutorial-overlay';
+import { OfflineBanner } from '@/components/ui/offline-banner';
+import { AuthProvider } from '@/contexts/auth';
+import { ConfirmProvider } from '@/contexts/confirm';
+import { CurrencyProvider } from '@/contexts/currency';
+import { ReceiptScanProvider } from '@/contexts/receipt-scan';
+import { ToastProvider } from '@/contexts/toast';
+import { TutorialProvider } from '@/contexts/tutorial';
+import { VoiceNoteProvider } from '@/contexts/voice-note';
+import { AppQueryProvider } from '@/lib/query';
+import { color } from '@/theme/tokens';
+import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -6,21 +24,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { PhoneFrame } from '@/components/phone-frame';
-import { AuthProvider } from '@/contexts/auth';
-import { ConfirmProvider } from '@/contexts/confirm';
-import { CurrencyProvider } from '@/contexts/currency';
-import { ReceiptScanProvider } from '@/contexts/receipt-scan';
-import { ToastProvider } from '@/contexts/toast';
-import { SessionGuard } from '@/components/session-guard';
-import { TutorialProvider } from '@/contexts/tutorial';
-import { TutorialOverlay } from '@/components/tutorial/tutorial-overlay';
-import { VoiceNoteProvider } from '@/contexts/voice-note';
-import { AppQueryProvider } from '@/lib/query';
-import { OfflineBanner } from '@/components/ui/offline-banner';
-import { TelemetryListener } from '@/components/telemetry-listener';
-import { PendingDuplicateListener } from '@/components/pending-duplicate-listener';
-import { color } from '@/theme/tokens';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -58,7 +61,9 @@ export default function RootLayout() {
                     <StatusBar style="dark" />
                     <OfflineBanner />
                     <TelemetryListener />
+                    <FeedbackPushListener />
                     <PendingDuplicateListener />
+                    <AppUpdatePrompt />
                     <Stack
                       screenOptions={{
                         headerShown: false,
@@ -83,6 +88,9 @@ export default function RootLayout() {
                       />
                       <Stack.Screen name="objectifs" />
                       <Stack.Screen name="settings" />
+                      <Stack.Screen name="app-update" />
+                      <Stack.Screen name="feedback" />
+                      <Stack.Screen name="admin-messages" />
                       <Stack.Screen name="profile" />
                       <Stack.Screen name="about" options={{ animation: 'fade', animationDuration: 480 }} />
                     </Stack>
@@ -90,6 +98,7 @@ export default function RootLayout() {
                 </ReceiptScanProvider>
               </ConfirmProvider>
               <TutorialOverlay />
+              <QuotaPromptHost />
               </TutorialProvider>
               </SessionGuard>
             </ToastProvider>

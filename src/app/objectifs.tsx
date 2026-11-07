@@ -14,7 +14,7 @@ import {
 } from '@/lib/api';
 import { invalidateFinance } from '@/lib/query';
 import { getTodayUtcDateInputValue } from '@/lib/plannedExpenseDates';
-import { isPremiumRequiredError } from '@/lib/errors';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
 import { useAuth } from '@/contexts/auth';
 import { useConfirm } from '@/contexts/confirm';
 import { useCurrency } from '@/contexts/currency';
@@ -140,7 +140,7 @@ export default function ObjectifsScreen() {
       if (isPremiumRequiredError(err)) {
         toast(err.message, 'info');
         router.push('/subscription');
-      } else toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      } else toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setSaving(false);
     }
@@ -246,7 +246,7 @@ export default function ObjectifsScreen() {
                 void q.refetch();
                 await invalidateFinance();
               } catch (e) {
-                toast(e instanceof Error ? e.message : 'Impossible', 'err');
+                toast(getErrorMessage(e, 'Impossible'), 'err');
               }
             }}>
             <Text style={styles.link}>jouer</Text>

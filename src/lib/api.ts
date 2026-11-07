@@ -155,11 +155,12 @@ export const subscriptionApi = {
     ),
   createCheckout: (
     period: import('./planLimits').BillingPeriod,
-    paymentMethod: 'all' | 'orange' | 'mtn' = 'all'
+    paymentMethod: 'all' | 'orange' | 'mtn' = 'all',
+    tier: import('./planLimits').PaidTier = 'pro'
   ) =>
     fetchApi<{ paymentUrl: string; transactionId: string }>('/subscription/checkout', {
       method: 'POST',
-      body: JSON.stringify({ period, payment_method: paymentMethod }),
+      body: JSON.stringify({ period, payment_method: paymentMethod, tier }),
     }),
   verifyPayment: (transactionId: string) =>
     fetchApi<{
@@ -486,7 +487,7 @@ export const exportApi = {
 export const authApi = {
   me: () =>
     fetchApi<MeUser>('/auth/me'),
-  updateMe: (data: { currency?: string; hidePlannedExpensesHelp?: boolean }) =>
+  updateMe: (data: { currency?: string; hidePlannedExpensesHelp?: boolean; name?: string }) =>
     fetchApi<MeUser>('/auth/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -494,6 +495,61 @@ export const authApi = {
   deleteMe: () =>
     fetchApi<{ message: string }>('/auth/me', { method: 'DELETE' }),
 };
+
+export const feedbackApi = {
+  registerPushToken: (token: string) =>
+    fetchApi<{ ok: boolean }>('/feedback/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  inboxPing: () =>
+    fetchApi<{
+      role: 'admin' | 'user';
+      unread: number;
+      preview: string;
+      userId: string;
+      lastAt: string;
+    }>('/feedback/inbox-ping'),
+  getMine: () => fetchApi<FeedbackMessage[]>('/feedback/me'),
+  send: (body: string) =>
+    fetchApi<FeedbackMessage>('/feedback/me', {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  getThreads: () => fetchApi<FeedbackThread[]>('/feedback/threads'),
+  getThread: (userId: string) =>
+    fetchApi<FeedbackThreadDetail>(`/feedback/threads/${userId}`),
+  reply: (userId: string, body: string) =>
+    fetchApi<FeedbackMessage>(`/feedback/threads/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+};
+
+export interface FeedbackMessage {
+  _id: string;
+  user_id: string;
+  author_id: string;
+  from: 'user' | 'admin';
+  body: string;
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface FeedbackThread {
+  userId: string;
+  name: string;
+  email: string;
+  lastAt: string;
+  lastFrom: 'user' | 'admin';
+  preview: string;
+  unread: number;
+}
+
+export interface FeedbackThreadDetail {
+  user: { id: string; name: string; email: string };
+  messages: FeedbackMessage[];
+}
 
 // Admin
 export const adminApi = {
@@ -595,14 +651,38 @@ export interface MonthComparison {
   };
 }
 
+export interface QuotaSnap {
+  key: string;
+  label: string;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  period: 'month' | 'total';
+  nextTier?: 'pro' | 'pro_plus' | 'business' | null;
+  nextLabel?: string | null;
+  nextPriceXaf?: number | null;
+}
+
 export interface MeUser {
   id: string;
   email: string;
   name?: string;
   role?: 'user' | 'admin';
   plan?: 'free' | 'premium';
+  subscriptionTier?: 'free' | 'pro' | 'pro_plus' | 'business';
+  accessTier?: 'free' | 'pro' | 'pro_plus' | 'business';
+  tierLabel?: string;
+  lifetime?: boolean;
+  canExportRange?: boolean;
+  exportFormats?: Array<'csv' | 'pdf' | 'xlsx'>;
+  quotas?: {
+    categories: QuotaSnap;
+    wallets: QuotaSnap;
+    scans: QuotaSnap;
+    voice: QuotaSnap;
+  };
   premiumUntil?: string | null;
-  premiumSource?: 'trial' | 'paid' | null;
+  premiumSource?: 'trial' | 'paid' | 'lifetime' | null;
   isPremium?: boolean;
   isOnTrial?: boolean;
   currency?: string;

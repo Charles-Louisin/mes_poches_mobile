@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ChevronDown, ChevronUp, Info, Search } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Info, Search, X } from 'lucide-react-native';
 import { categoryApi, plannedExpenseApi, transactionApi, walletApi } from '@/lib/api';
 import { buildMonthOptions, filterTransactions, type TransactionFiltersState } from '@/lib/filterTransactions';
 import { PLAN_LIMITS } from '@/lib/planLimits';
+import { getErrorMessage } from '@/lib/errors';
 import { localTransactions } from '@/lib/offline-queue';
 import { invalidateFinance } from '@/lib/query';
 import { defaultOpenDayKey, groupTransactionsByDate } from '@/lib/utils';
@@ -108,7 +109,7 @@ export default function JournalScreen() {
       await invalidateFinance();
       toast('Échéance retirée', 'ok');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setCancellingId(null);
     }
@@ -135,6 +136,14 @@ export default function JournalScreen() {
               placeholderTextColor={color.textMuted}
               style={styles.search}
             />
+            {filters.q ? (
+              <PressScale
+                onPress={() => setFilters((f) => ({ ...f, q: '' }))}
+                accessibilityLabel="Effacer la recherche"
+                hitSlop={8}>
+                <X color={color.textMuted} size={18} strokeWidth={2.2} />
+              </PressScale>
+            ) : null}
           </View>
           <View style={styles.chips}>
             {types.map((t) => (
@@ -150,16 +159,19 @@ export default function JournalScreen() {
             <Chip
               label={wallets.data?.find((w) => w._id === filters.walletId)?.name || 'Poche'}
               active={!!filters.walletId}
+              affordance
               onPress={() => setPick('wallet')}
             />
             <Chip
               label={categories.data?.find((c) => c._id === filters.categoryId)?.name || 'Catégorie'}
               active={!!filters.categoryId}
+              affordance
               onPress={() => setPick('cat')}
             />
             <Chip
               label={months.find((m) => m.value === filters.monthYm)?.label || 'Mois'}
               active={!!filters.monthYm}
+              affordance
               onPress={() => setPick('month')}
             />
           </View>

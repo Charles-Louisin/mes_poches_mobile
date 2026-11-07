@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Fingerprint, ScanFace } from 'lucide-react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/auth';
@@ -167,7 +167,7 @@ export default function LoginScreen() {
 
   return (
     <Screen scroll>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <View>
         <BrandLockup size={48} caption="grand livre de poche" />
         <Text style={styles.headline}>{isLogin ? 'Bon retour.' : 'Ouvrir un livre.'}</Text>
         <Text style={styles.lede}>
@@ -300,7 +300,7 @@ export default function LoginScreen() {
             <Text style={styles.bioHint}>Ouvrir avec {bio.label}</Text>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

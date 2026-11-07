@@ -38,6 +38,11 @@ const styles = StyleSheet.create({
   },
   art: {
     marginBottom: space[20],
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 160,
+    width: '100%',
+    overflow: 'visible',
   },
   title: {
     ...typeScale.h3,

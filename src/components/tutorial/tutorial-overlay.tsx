@@ -50,15 +50,10 @@ export function TutorialOverlay() {
   const onHolePress = () => {
     if (meta.mode !== 'tap') return;
     if (meta.id === 'pocket-tab') router.navigate('/(tabs)/wallets');
-    else if (meta.id === 'pocket-add') router.navigate('/(tabs)/wallets/new');
     else if (meta.id === 'category-tab') router.navigate('/(tabs)/categories');
   };
 
-  const holeIsButton = meta.mode === 'tap' && (
-    meta.id === 'pocket-tab' ||
-    meta.id === 'pocket-add' ||
-    meta.id === 'category-tab'
-  );
+  const holeIsButton = meta.mode === 'tap' && (meta.id === 'pocket-tab' || meta.id === 'category-tab');
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -106,11 +101,7 @@ export function TutorialOverlay() {
         <View style={styles.modalWrap} pointerEvents="box-none">
           <Animated.View entering={FadeInDown.springify().damping(16)} style={styles.modal}>
             {meta.id === 'success' ? <CoinsArt size={160} /> : <GiftArt size={160} />}
-            {meta.id === 'trial' ? (
-              <Text style={styles.trialTitle}>1 MOIS PREMIUM OFFERT</Text>
-            ) : (
-              <Text style={[styles.title, styles.modalTitle]}>{meta.title}</Text>
-            )}
+            <Text style={[styles.title, styles.modalTitle]}>{meta.title}</Text>
             <Text style={[styles.body, styles.modalBody]}>{meta.body}</Text>
             <Button label={meta.cta ?? 'OK'} onPress={next} />
           </Animated.View>
@@ -126,13 +117,13 @@ export function TutorialOverlay() {
           ]}>
           <View style={styles.cardHead}>
             <Text style={styles.title}>{meta.title}</Text>
-            <Pressable onPress={skip} hitSlop={8} accessibilityRole="button" accessibilityLabel="Passer le tutoriel">
+            <Pressable onPress={skip} hitSlop={8} accessibilityRole="button" accessibilityLabel="Passer le guide">
               <Text style={styles.skip}>Passer</Text>
             </Pressable>
           </View>
           <Text style={styles.body}>{meta.body}</Text>
           {meta.mode === 'tap' && hole ? (
-            <Text style={styles.hint}>Appuyez sur la zone éclairée.</Text>
+            <Text style={styles.hint}>Appuyez sur la zone éclairée — c’est l’action de cette étape.</Text>
           ) : (
             <Button label={meta.cta ?? 'Suivant'} onPress={next} />
           )}
@@ -192,14 +183,6 @@ const styles = StyleSheet.create({
   },
   modalBody: { textAlign: 'center' },
   modalTitle: { textAlign: 'center' },
-  trialTitle: {
-    fontFamily: font.sansBold,
-    fontSize: 20,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: color.text,
-    textAlign: 'center',
-  },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   title: { fontFamily: font.sansBold, fontSize: 18, color: color.text, flex: 1 },
   body: { fontFamily: font.sans, fontSize: 14, lineHeight: 21, color: color.textSecondary },

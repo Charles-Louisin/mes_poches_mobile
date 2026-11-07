@@ -7,7 +7,7 @@
     "base": {
       "node": "20.18.0",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://mespochesbackend-production-9bfe.up.railway.app/api",
+        "EXPO_PUBLIC_API_URL": "https://mespochesbackend-production-dafd.up.railway.app/api",
         "EXPO_PUBLIC_WEB_URL": "https://www.mespoches.store",
         "EXPO_PUBLIC_PRIVACY_URL": "https://www.mespoches.store/legal/privacy",
         "EXPO_PUBLIC_PAYMENTS_ENABLED": "false"
@@ -22,21 +22,27 @@
       },
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "extends": "base",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "extends": "base",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_MONEY_CAPTURE": "true"
+      },
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

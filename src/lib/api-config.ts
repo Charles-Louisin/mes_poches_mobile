@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const PRODUCTION_API = 'https://mespochesbackend-production-9bfe.up.railway.app/api';
+const PRODUCTION_API = 'https://mespochesbackend-production-dafd.up.railway.app/api';
 
 function isLocalWebHost(): boolean {
   if (Platform.OS !== 'web') return false;

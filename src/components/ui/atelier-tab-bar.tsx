@@ -74,8 +74,8 @@ export function AtelierTabBar({
               active={current === item.name}
               onPress={() => {
                 track('click', { screen: item.name, props: { element: 'tab' } });
-                if (item.name === 'transactions') {
-                  navigation.navigate('transactions', { screen: 'index' });
+                if (item.name === 'wallets') {
+                  navigation.navigate('wallets', { screen: 'index' });
                 } else {
                   navigation.navigate(item.name);
                 }

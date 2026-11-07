@@ -25,7 +25,11 @@ export function ComposeSheet({
   onAudio: () => void;
   imageDisabled?: boolean;
 }) {
-  const { isPremium } = useAuth();
+  const { user } = useAuth();
+  const quotaFull = (key: 'scans' | 'voice') => {
+    const q = user?.quotas?.[key];
+    return !!q && q.limit != null && q.used >= q.limit;
+  };
   const cells = [
     { key: 'text', Icon: Type, title: 'Saisie', hint: 'Montant à la main', tone: 'primary' as const, onPress: onText, disabled: false, pro: false },
     {
@@ -36,9 +40,9 @@ export function ComposeSheet({
       tone: 'warning' as const,
       onPress: onImage,
       disabled: !!imageDisabled,
-      pro: true,
+      pro: quotaFull('scans'),
     },
-    { key: 'audio', Icon: Mic, title: 'Voix', hint: 'Note vocale', tone: 'success' as const, onPress: onAudio, disabled: false, pro: true },
+    { key: 'audio', Icon: Mic, title: 'Voix', hint: 'Note vocale', tone: 'success' as const, onPress: onAudio, disabled: false, pro: quotaFull('voice') },
   ];
 
   return (
@@ -66,7 +70,7 @@ export function ComposeSheet({
                 <IconCircle tone={tone} size={48}>
                   <Icon color={iconToneColor(tone)} size={22} strokeWidth={2} />
                 </IconCircle>
-                {pro && !isPremium ? <GoldDiamond size={16} /> : null}
+                {pro ? <GoldDiamond size={16} /> : null}
               </View>
               <Text style={styles.cellTitle}>{title}</Text>
               <Text style={styles.cellHint}>{hint}</Text>

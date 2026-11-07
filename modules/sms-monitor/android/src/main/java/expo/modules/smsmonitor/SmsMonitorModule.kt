@@ -1,13 +1,17 @@
 package expo.modules.smsmonitor
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import com.mespoches.app.DailyReminderScheduler
 import com.mespoches.app.DownloadStore
+import com.mespoches.app.FeedbackInboxPoller
+import com.mespoches.app.FeedbackInboxScheduler
 import com.mespoches.app.MesPochesNotifier
 import com.mespoches.app.OfflinePendingQueue
 import com.mespoches.app.SmsAuthStore
 import com.mespoches.app.SmsMonitorEvents
+import com.mespoches.app.ReceiptOcr
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -32,13 +36,43 @@ class SmsMonitorModule : Module() {
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       SmsAuthStore.store(ctx, token, apiUrl)
       DailyReminderScheduler.scheduleNext(ctx)
-      Thread { OfflinePendingQueue.flush(ctx) }.start()
+      FeedbackInboxScheduler.scheduleNext(ctx)
+      Thread {
+        OfflinePendingQueue.flush(ctx)
+        FeedbackInboxPoller.check(ctx)
+      }.start()
     }
 
     AsyncFunction("clearAuthToken") {
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       SmsAuthStore.clear(ctx)
       DailyReminderScheduler.cancel(ctx)
+      FeedbackInboxScheduler.cancel(ctx)
+    }
+
+    AsyncFunction("scheduleInboxPoll") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      FeedbackInboxScheduler.scheduleNext(ctx)
+    }
+
+    AsyncFunction("checkInboxNow") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      FeedbackInboxPoller.check(ctx)
+    }
+
+    AsyncFunction("setInboxCursor") { lastAt: String ->
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      SmsAuthStore.setInboxLastAt(ctx, lastAt)
+    }
+
+    AsyncFunction("getInboxCursor") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      mapOf("lastAt" to (SmsAuthStore.getInboxLastAt(ctx) ?: ""))
+    }
+
+    AsyncFunction("touchInboxHeartbeat") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      SmsAuthStore.touchInboxHeartbeat(ctx)
     }
 
     AsyncFunction("scheduleDailyReminder") {
@@ -48,7 +82,23 @@ class SmsMonitorModule : Module() {
 
     AsyncFunction("isNotificationListenerEnabled") {
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      mapOf("enabled" to SmsAuthStore.isNotificationListenerEnabled(ctx))
+      mapOf(
+        "enabled" to SmsAuthStore.isNotificationListenerEnabled(ctx),
+        "connected" to SmsAuthStore.isListenerConnected(ctx)
+      )
+    }
+
+    AsyncFunction("rebindNotificationListener") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      SmsAuthStore.requestListenerRebind(ctx)
+    }
+
+    AsyncFunction("openAppDetailsSettings") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+      intent.data = Uri.parse("package:${ctx.packageName}")
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      ctx.startActivity(intent)
     }
 
     AsyncFunction("openNotificationAccessSettings") {
@@ -66,6 +116,21 @@ class SmsMonitorModule : Module() {
     AsyncFunction("saveToDownloads") { sourcePath: String, filename: String, mimeType: String? ->
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       mapOf("uri" to DownloadStore.save(ctx, sourcePath, filename, mimeType))
+    }
+
+    AsyncFunction("recognizeText") { sourcePath: String ->
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      mapOf("text" to ReceiptOcr.recognize(ctx, sourcePath))
+    }
+
+    AsyncFunction("listOfflineQueue") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      OfflinePendingQueue.listItems(ctx)
+    }
+
+    AsyncFunction("flushOfflineQueue") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      Thread { OfflinePendingQueue.flush(ctx) }.start()
     }
   }
 }

@@ -44,8 +44,12 @@ public class BootReceiver extends BroadcastReceiver {
         }
 
         DailyReminderScheduler.scheduleNext(context.getApplicationContext());
+        FeedbackInboxScheduler.scheduleNext(context.getApplicationContext());
         // Traiter les SMS récents en arrière-plan
-        new Thread(() -> processMissedSms(context)).start();
+        new Thread(() -> {
+            processMissedSms(context);
+            FeedbackInboxPoller.check(context.getApplicationContext());
+        }).start();
     }
 
     /**
@@ -95,7 +99,7 @@ public class BootReceiver extends BroadcastReceiver {
                 processedFingerprints.add(fp);
 
                 // Vérifier si déjà traité via le cache global
-                if (MoneyNotificationListener.claimEvent("boot|" + fp, fp)) {
+                if (MoneyNotificationListener.claimEvent(context, "boot|" + fp, fp)) {
                     continue;
                 }
 

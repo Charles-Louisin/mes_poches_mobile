@@ -2,8 +2,11 @@ import { Platform } from 'react-native';
 import { scheduleDailyReminder as scheduleNativeReminder } from 'sms-monitor';
 import { canUseSmsNative } from './sms-monitor';
 
+let ran = false;
+
 export async function ensureDailyReminder(): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || ran) return;
+  ran = true;
   if (canUseSmsNative()) {
     try {
       await scheduleNativeReminder();
@@ -13,8 +16,8 @@ export async function ensureDailyReminder(): Promise<void> {
   }
   try {
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
-    const allowed = await Notifications.requestPermissionsAsync();
-    if (!allowed.granted) return;
+    const current = await Notifications.getPermissionsAsync();
+    if (!current.granted) return;
     await Notifications.setNotificationChannelAsync?.('mes_poches_reminders', {
       name: 'Rappels quotidiens',
       importance: Notifications.AndroidImportance.DEFAULT,

@@ -4,11 +4,13 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { pendingTransactionApi } from '@/lib/api';
 import { compressImageForScan } from '@/lib/image-compress';
+import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
 import { isAbortError, isTimeoutError } from '@/lib/errors';
 import { formatScanError } from '@/lib/scan-errors';
 import { notifyTransactionReady } from '@/lib/pending-notify';
 import { invalidateFinance } from '@/lib/query';
-import { useAuth } from '@/contexts/auth';
+import { enqueueJob, makeLocalPending, runOrQueue } from '@/lib/offline-queue';
+import { extractPrintedText, parseReceiptText } from '@/lib/ocr';
 import { ReceiptScanOverlay, type ScanPhase } from '@/components/capture/receipt-scan-overlay';
 import { ReceiptSourceSheet } from '@/components/capture/receipt-source-sheet';
 
@@ -22,7 +24,6 @@ type ReceiptScanContextValue = {
 const ReceiptScanContext = createContext<ReceiptScanContextValue | null>(null);
 
 export function ReceiptScanProvider({ children }: { children: ReactNode }) {
-  const { isPremium, requirePremium } = useAuth();
   const [phase, setPhase] = useState<ScanPhase>('idle');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -72,8 +73,49 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
         const { image, mimeType, previewUri } = await compressImageForScan(uri);
         if (controller.signal.aborted) return false;
         setImagePreview(previewUri);
-        const created = await pendingTransactionApi.aiScan(image, mimeType, controller.signal);
+
+        const ocrText = (await extractPrintedText(uri)) || (await extractPrintedText(previewUri));
+        const parsed = ocrText ? parseReceiptText(ocrText) : null;
+
+        const scanned = await runOrQueue(
+          () => pendingTransactionApi.aiScan(image, mimeType, controller.signal),
+          async () => {
+            if (!ocrText?.trim()) {
+              throw new Error(
+                'Pas de connexion pour analyser la photo. Réessayez en ligne, ou photographiez un ticket imprimé plus net.'
+              );
+            }
+            await enqueueJob({
+              kind: 'pending-ocr',
+              data: { text: ocrText.slice(0, 800) },
+              preview: makeLocalPending({
+                source: 'ai_scan',
+                document_type: 'receipt',
+                type: parsed?.type || 'expense',
+                amount: parsed?.amount ?? 0,
+                description: parsed?.description || 'Ticket',
+                raw_text: ocrText.slice(0, 800),
+                date: parsed?.date || new Date().toISOString().slice(0, 10),
+                confidence: parsed?.confidence ?? 0.4,
+                low_confidence_warning:
+                  "Ticket enregistré hors ligne. L’analyse complète se fera à la reconnexion.",
+              }),
+            });
+          }
+        );
         if (controller.signal.aborted) return false;
+        if (!scanned.online) {
+          setPhase('success');
+          setMessage('Ticket enregistré hors ligne — synchro à la reconnexion');
+          pendingImage.current = null;
+          await invalidateFinance();
+          setTimeout(() => {
+            reset();
+            router.push('/pending');
+          }, 1200);
+          return true;
+        }
+        const created = scanned.value;
         const count = created.length;
         const expense = created.filter((t) => t.type === 'expense').length;
         const income = created.filter((t) => t.type === 'income').length;
@@ -107,6 +149,10 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
         return true;
       } catch (e) {
         if (controller.signal.aborted || isAbortError(e)) {
+          return false;
+        }
+        if (quotaPromptFromError(e)) {
+          reset();
           return false;
         }
         if (isTimeoutError(e)) {
@@ -143,10 +189,6 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
 
   const startScan = useCallback(async (): Promise<boolean> => {
     if (phase !== 'idle' && phase !== 'error') return false;
-    if (!isPremium) {
-      requirePremium();
-      return false;
-    }
     if (phase === 'error') reset();
 
     try {
@@ -173,7 +215,7 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
       setMessage(formatScanError(e));
       return false;
     }
-  }, [askSource, isPremium, phase, pickFrom, processImage, requirePremium, reset]);
+  }, [askSource, phase, pickFrom, processImage, reset]);
 
   return (
     <ReceiptScanContext.Provider value={{ startScan, scanning: phase === 'scanning' }}>

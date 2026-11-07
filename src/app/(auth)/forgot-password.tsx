@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useAuth } from '@/contexts/auth';
 import { useToast } from '@/contexts/toast';
 import { forgotPasswordRequest } from '@/lib/auth';
-import { ApiError } from '@/lib/errors';
+import { ApiError, getErrorMessage } from '@/lib/errors';
 import { validateLoginField } from '@/lib/loginValidation';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -54,7 +54,7 @@ export default function ForgotPasswordScreen() {
     } catch (err) {
       if (err instanceof ApiError && err.code === 'RESEND_COOLDOWN') {
         toast(err.message, 'info');
-      } else toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      } else toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function ForgotPasswordScreen() {
       toast('Mot de passe renouvelé', 'ok');
       router.replace('/(tabs)');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setLoading(false);
     }

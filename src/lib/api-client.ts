@@ -1,6 +1,8 @@
 import { getApiUrl } from './api-config';
+import { ApiError, isNetworkFailure, isTimeoutError, NETWORK_ERROR_MESSAGE, PremiumRequiredError } from './errors';
+import { readFinanceCache, writeFinanceCache } from './local-db';
+import { isOnline } from './network';
 import { PREMIUM_REQUIRED_CODE } from './planLimits';
-import { ApiError, PremiumRequiredError } from './errors';
 import { getToken } from './secure-token';
 import { revokeSession } from './session';
 
@@ -21,12 +23,6 @@ function apiUrl(endpoint: string): string {
 function isAbortFailure(err: unknown, signal?: AbortSignal | null): boolean {
   if (signal?.aborted) return true;
   return err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message));
-}
-
-function isNetworkFailure(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  if (err.name === 'AbortError') return false;
-  return /failed to fetch|network request failed|load failed|networkerror/i.test(err.message);
 }
 
 function timeoutMsFor(url: string): number {
@@ -60,7 +56,7 @@ async function request(url: string, options?: RequestInit): Promise<Response> {
       });
     }
     if (isNetworkFailure(err)) {
-      throw new ApiError('Impossible de joindre le serveur. Vérifiez votre connexion.', {
+      throw new ApiError(NETWORK_ERROR_MESSAGE, {
         code: 'NETWORK',
       });
     }
@@ -124,6 +120,91 @@ export async function fetchAuthRaw(
   return { response, data };
 }
 
+function persistFinanceSlice(endpoint: string, payload: unknown): void {
+  const [path, query = ''] = endpoint.split('?');
+  const params = new URLSearchParams(query);
+  void (async () => {
+    if (path === '/wallets') {
+      await writeFinanceCache({ wallets: payload });
+      return;
+    }
+    if (path === '/wallets/total-balance') {
+      await writeFinanceCache({ totalBalance: payload });
+      return;
+    }
+    if (path === '/categories') {
+      const prev = await readFinanceCache();
+      const incoming = Array.isArray(payload) ? payload : [];
+      const existing = Array.isArray(prev?.categories) ? prev.categories : [];
+      await writeFinanceCache({ categories: mergeById(existing, incoming) });
+      return;
+    }
+    if (path === '/transactions') {
+      if (params.get('wallet_id') || params.get('startDate') || params.get('endDate')) return;
+      const prev = await readFinanceCache();
+      const incoming = Array.isArray(payload) ? payload : [];
+      const existing = Array.isArray(prev?.transactions) ? prev.transactions : [];
+      const merged = mergeById(existing, incoming);
+      await writeFinanceCache({ transactions: merged });
+      return;
+    }
+    if (path === '/pending-transactions') {
+      await writeFinanceCache({ pending: payload });
+    }
+  })();
+}
+
+function mergeById(existing: unknown[], incoming: unknown[]): unknown[] {
+  const map = new Map<string, unknown>();
+  for (const item of existing) {
+    const id = recordId(item);
+    if (id) map.set(id, item);
+  }
+  for (const item of incoming) {
+    const id = recordId(item);
+    if (id) map.set(id, item);
+  }
+  return [...map.values()];
+}
+
+function recordId(item: unknown): string {
+  if (item && typeof item === 'object' && '_id' in item) {
+    return String((item as { _id: unknown })._id);
+  }
+  return '';
+}
+
+async function cachedFinanceSlice<T>(endpoint: string): Promise<T | undefined> {
+  const [path, query = ''] = endpoint.split('?');
+  const params = new URLSearchParams(query);
+  const cache = await readFinanceCache();
+  if (!cache) return undefined;
+  if (path === '/wallets') return cache.wallets as T | undefined;
+  if (path === '/wallets/total-balance') {
+    if (cache.totalBalance !== undefined) return cache.totalBalance as T;
+    if (Array.isArray(cache.wallets)) {
+      const wallets = cache.wallets as Array<{ current_balance?: number }>;
+      const total = wallets.reduce((sum, w) => sum + (Number(w.current_balance) || 0), 0);
+      return { total, totalSavings: 0, wallets: cache.wallets } as T;
+    }
+    return undefined;
+  }
+  if (path === '/categories') {
+    const list = cache.categories as Array<{ type?: string }> | undefined;
+    if (!list) return undefined;
+    const type = params.get('type');
+    if (type) return list.filter((c) => c.type === type) as T;
+    return list as T;
+  }
+  if (path === '/transactions') return cache.transactions as T | undefined;
+  if (path === '/pending-transactions') return cache.pending as T | undefined;
+  return undefined;
+}
+
+function canReadCache(err: unknown): boolean {
+  return isNetworkFailure(err) || isTimeoutError(err);
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   if (!token) {
@@ -131,30 +212,52 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
     throw new ApiError('Session expirée. Reconnectez-vous.', { code: 'SESSION_REVOKED', status: 401 });
   }
 
-  const response = await request(apiUrl(endpoint), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
-
-  const data = await parseBody(response);
-  if (response.status === 401) {
-    void revokeSession('expired');
-    throw new ApiError(data?.message || 'Session expirée. Reconnectez-vous.', {
-      code: data?.code || 'SESSION_REVOKED',
-      status: 401,
+  const method = String(options?.method || 'GET').toUpperCase();
+  if (method === 'GET' && !(await isOnline())) {
+    const cached = await cachedFinanceSlice<T>(endpoint);
+    if (cached !== undefined) return cached;
+  }
+  try {
+    const response = await request(apiUrl(endpoint), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options?.headers,
+      },
     });
+
+    const data = await parseBody(response);
+    if (response.status === 401) {
+      void revokeSession('expired');
+      throw new ApiError(data?.message || 'Session expirée. Reconnectez-vous.', {
+        code: data?.code || 'SESSION_REVOKED',
+        status: 401,
+      });
+    }
+    if (data?.code === 'ACCOUNT_SUSPENDED') {
+      void revokeSession('expired');
+      throw new ApiError(data.message || 'Ce compte a été suspendu.', {
+        code: 'ACCOUNT_SUSPENDED',
+        status: 403,
+      });
+    }
+    if (!data) {
+      throwFrom(response, null);
+    }
+    if (!response.ok || !data.success) {
+      throwFrom(response, data);
+    }
+    const payload = data.data as T;
+    if (method === 'GET') persistFinanceSlice(endpoint, payload);
+    return payload;
+  } catch (err) {
+    if (method === 'GET' && canReadCache(err)) {
+      const cached = await cachedFinanceSlice<T>(endpoint);
+      if (cached !== undefined) return cached;
+    }
+    throw err;
   }
-  if (!data) {
-    throwFrom(response, null);
-  }
-  if (!response.ok || !data.success) {
-    throwFrom(response, data);
-  }
-  return data.data as T;
 }
 
 export async function fetchApiBlob(endpoint: string, options?: RequestInit): Promise<Blob> {

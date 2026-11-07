@@ -14,7 +14,7 @@ import {
 } from '@/lib/api';
 import { getTodayUtcDateInputValue, isFutureUtcDay } from '@/lib/plannedExpenseDates';
 import { invalidateFinance } from '@/lib/query';
-import { isPremiumRequiredError } from '@/lib/errors';
+import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
 import { enqueueJob, runOrQueue } from '@/lib/offline-queue';
 import { useAuth } from '@/contexts/auth';
 import { useCurrency } from '@/contexts/currency';
@@ -89,17 +89,24 @@ export default function NewTransactionScreen() {
 
   useEffect(() => {
     void (async () => {
-      const w = await walletApi.getAll();
-      setWallets(w);
-      if (w[0] && !walletId) setWalletId(w[0]._id);
-      if (kind !== 'transfer') {
-        const c = await categoryApi.getAll(kind);
-        setCategories(c);
+      try {
+        const w = await walletApi.getAll();
+        const list = Array.isArray(w) ? w : [];
+        setWallets(list);
+        if (list[0] && !walletId) setWalletId(list[0]._id);
+        if (kind !== 'transfer') {
+          const c = await categoryApi.getAll(kind);
+          setCategories(Array.isArray(c) ? c : []);
+        } else {
+          setCategories([]);
+        }
+        if (isPremium && (kind === 'income' || kind === 'transfer')) {
+          const g = await savingsGoalApi.getAll().catch(() => []);
+          setGoals(Array.isArray(g) ? g : []);
+        } else setGoals([]);
+      } catch (err) {
+        toast(getErrorMessage(err, 'Impossible de charger les poches'), 'err');
       }
-      if (isPremium && (kind === 'income' || kind === 'transfer')) {
-        const g = await savingsGoalApi.getAll().catch(() => []);
-        setGoals(g);
-      } else setGoals([]);
     })();
   }, [kind, isPremium]);
 
@@ -282,7 +289,7 @@ export default function NewTransactionScreen() {
       if (isPremiumRequiredError(err)) {
         toast(err.message, 'info');
         router.push('/subscription');
-      } else toast(err instanceof Error ? err.message : 'Impossible', 'err');
+      } else toast(getErrorMessage(err, 'Impossible'), 'err');
     } finally {
       setLoading(false);
     }

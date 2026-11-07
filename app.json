@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#2563EB",
         "foregroundImage": "./assets/brand/mark-512.png",
@@ -49,8 +50,6 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECEIVE_SMS",
-        "android.permission.READ_SMS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.USE_BIOMETRIC",
@@ -65,7 +64,15 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true,
+            "default": false
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -127,17 +134,31 @@
           "recordAudioAndroid": true
         }
       ],
-      "./plugins/withMicrophonePermission.js"
+      "./plugins/withMicrophonePermission.js",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "asyncRoutes": {
+          "web": true,
+          "default": false
+        }
+      },
       "eas": {
         "projectId": "fbacdc88-f2d0-48f4-894b-278b8e2900c5"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fbacdc88-f2d0-48f4-894b-278b8e2900c5",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }
