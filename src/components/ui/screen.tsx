@@ -2,6 +2,7 @@ import { type ReactNode, type RefObject } from 'react';
 import {
   RefreshControl,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   View,
   type ViewStyle,
@@ -33,7 +34,7 @@ export function Screen({
   refreshing?: boolean;
   backdrop?: boolean;
   enter?: boolean;
-  scrollRef?: RefObject<ScrollView | null>;
+  scrollRef?: RefObject<ScrollViewInstance | null>;
   /** Conservé pour les écrans qui le passaient déjà. Le remontage est toujours actif. */
   keyboardAware?: boolean;
 }) {

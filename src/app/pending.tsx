@@ -6,7 +6,6 @@ import { pendingTransactionApi, walletApi, categoryApi, sanitizeLineItems, type 
 import { defaultOpenDayKey, formatDateTime, groupTransactionsByDate, idOf, nameOf } from '@/lib/utils';
 import { invalidateFinance } from '@/lib/query';
 import { getErrorMessage } from '@/lib/errors';
-import { localPendings, patchLocalPending } from '@/lib/offline-queue';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
 import { Button } from '@/components/ui/button';
@@ -27,17 +26,26 @@ import { track } from '@/lib/telemetry';
 function sourceLabel(s: string) {
   if (s === 'sms') return 'SMS';
   if (s === 'notification') return 'Notification';
-  if (s === 'ai_scan') return 'Ticket';
+  if (s === 'ai_scan') return 'Photo';
   if (s === 'voice') return 'Note vocale';
   return 'Manuel';
 }
 
+const DOCUMENT_LABELS: Record<string, string> = {
+  voice_note: 'note vocale',
+  receipt: 'ticket de caisse',
+  invoice: 'facture',
+  screenshot: 'capture d’écran',
+  sms_mobile_money: 'SMS mobile money',
+  sms_bank: 'SMS bancaire',
+  handwritten_list: 'liste écrite à la main',
+  handwritten_note: 'note écrite à la main',
+  other_financial: 'document',
+};
+
 function documentLabel(s?: string) {
   if (!s) return '';
-  if (s === 'voice_note') return 'note vocale';
-  if (s === 'handwritten_list') return 'écrit à la main';
-  if (s === 'receipt') return 'ticket';
-  return s.replace(/_/g, ' ');
+  return DOCUMENT_LABELS[s] ?? 'document';
 }
 
 function confidenceTone(c: number) {
@@ -108,18 +116,28 @@ export default function PendingScreen() {
   const [openReady, setOpenReady] = useState(false);
   const saving = useRef(false);
 
+  /** Catégorie d'une ligne changée directement sur la carte (sans passer en mode modification). */
+  const saveLineCategory = async (item: PendingTransaction, index: number, categoryId: string | null) => {
+    try {
+      const lines = (item.ai_items ?? []).map((line, i) => (i === index ? { ...line, category_id: categoryId } : line));
+      await pendingTransactionApi.update(item._id, { ai_items: sanitizeLineItems(lines) });
+      await q.refetch();
+    } catch (err) {
+      toast(getErrorMessage(err, 'Catégorie non enregistrée'), 'err');
+    }
+  };
+
   const q = useQuery({
     queryKey: ['pending'],
     queryFn: async () => {
-      const [remote, wallets, incomeCategories, expenseCategories, local] = await Promise.all([
+      const [remote, wallets, incomeCategories, expenseCategories] = await Promise.all([
         pendingTransactionApi.getAll('pending').catch(() => [] as PendingTransaction[]),
         walletApi.getAll().catch(() => []),
         categoryApi.getAll('income').catch(() => []),
         categoryApi.getAll('expense').catch(() => []),
-        localPendings(),
       ]);
       const categories = [...incomeCategories, ...expenseCategories];
-      return { items: [...local, ...remote], wallets, categories };
+      return { items: remote, wallets, categories };
     },
   });
 
@@ -152,20 +170,6 @@ export default function PendingScreen() {
   };
 
   const saveDraft = async (id: string, data: Draft) => {
-    if (id.startsWith('local-') || id.startsWith('native-')) {
-      const n = parseFloat(data.amount.replace(',', '.'));
-      await patchLocalPending(id, {
-        amount: n > 0 ? n : undefined,
-        type: data.type,
-        description: data.description,
-        date: data.date,
-        wallet_id: data.walletId || undefined,
-        category_id: data.categoryId || null,
-      });
-      await q.refetch();
-      toast('Modifications enregistrées hors ligne', 'ok');
-      return;
-    }
     if (saving.current) return;
     saving.current = true;
     try {
@@ -218,10 +222,6 @@ export default function PendingScreen() {
   };
 
   const act = async (item: PendingTransaction, kind: 'ok' | 'no') => {
-    if (item._id.startsWith('local-')) {
-      toast('Attendez la synchronisation hors ligne', 'info');
-      return;
-    }
     const key = item._id;
     if (acting[key] === kind) return;
     setActing((prev) => ({ ...prev, [key]: kind }));
@@ -281,12 +281,6 @@ export default function PendingScreen() {
           walletId: pick.kind === 'wallet' ? value : draft.walletId,
           categoryId: pick.kind === 'cat' ? value : draft.categoryId,
         });
-      } else if (pick.id.startsWith('local-') || pick.id.startsWith('native-')) {
-        await patchLocalPending(
-          pick.id,
-          pick.kind === 'wallet' ? { wallet_id: value } : { category_id: value || null }
-        );
-        await q.refetch();
       } else {
         await pendingTransactionApi.update(
           pick.id,
@@ -338,7 +332,6 @@ export default function PendingScreen() {
               <Text style={styles.src}>
                 {sourceLabel(item.source)}
                 {doc ? ` · ${doc}` : ''}
-                {item._id.startsWith('local-') ? ' · hors ligne' : ''}
               </Text>
               <View style={[styles.confPill, { backgroundColor: tone.bg }]}>
                 <Text style={[styles.confT, { color: tone.fg }]}>confiance {pct} %</Text>
@@ -366,6 +359,7 @@ export default function PendingScreen() {
                       setDraft({
                         ...d,
                         type: 'expense',
+                        items: d.type === 'expense' ? d.items : d.items.map((line) => ({ ...line, category_id: null })),
                         categoryId: categoryStillValid(d.categoryId, 'expense', q.data?.categories ?? [])
                           ? d.categoryId
                           : '',
@@ -379,6 +373,7 @@ export default function PendingScreen() {
                       setDraft({
                         ...d,
                         type: 'income',
+                        items: d.type === 'income' ? d.items : d.items.map((line) => ({ ...line, category_id: null })),
                         categoryId: categoryStillValid(d.categoryId, 'income', q.data?.categories ?? [])
                           ? d.categoryId
                           : '',
@@ -458,6 +453,18 @@ export default function PendingScreen() {
                       }
                     : undefined
                 }
+                categories={(q.data?.categories ?? []).filter((c) => c.type === (open ? d.type : item.type))}
+                parentCategoryName={catName}
+                onCategoryChange={(index, categoryId) => {
+                  if (open) {
+                    setDraft({
+                      ...d,
+                      items: d.items.map((line, i) => (i === index ? { ...line, category_id: categoryId } : line)),
+                    });
+                  } else {
+                    void saveLineCategory(item, index, categoryId);
+                  }
+                }}
               />
             ) : null}
 
@@ -550,7 +557,7 @@ const styles = StyleSheet.create({
     borderTopColor: color.border,
   },
   srcRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  src: { fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: color.primary, flex: 1 },
+  src: { fontFamily: font.sansMed, fontSize: 13, color: color.primary, flex: 1 },
   confPill: { borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 4 },
   confT: { fontFamily: font.sansSemi, fontSize: 11 },
   amt: { fontFamily: font.sansBold, fontSize: 28, marginTop: 6 },

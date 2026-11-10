@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { router } from 'expo-router';
 import { BottomTabBarProps } from 'expo-router/tabs';
 import { StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -24,11 +25,21 @@ const RIGHT = [
 
 export function AtelierTabBar({
   state,
-  navigation,
+  navigateToTab,
   onCompose,
 }: BottomTabBarProps & { onCompose: () => void }) {
   const insets = useSafeAreaInsets();
   const current = state.routes[state.index]?.name;
+
+  /** SDK 58 : la barre reçoit navigateToTab(clé). Historique et Poches reviennent à la racine de leur pile. */
+  const goTo = (name: string) => {
+    if (name === 'transactions' || name === 'wallets') {
+      router.navigate(`/${name}` as never);
+      return;
+    }
+    const route = state.routes.find((r) => r.name === name);
+    if (route) navigateToTab(route.key);
+  };
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -41,11 +52,7 @@ export function AtelierTabBar({
               active={current === item.name}
               onPress={() => {
                 track('click', { screen: item.name, props: { element: 'tab' } });
-                if (item.name === 'transactions') {
-                  navigation.navigate('transactions', { screen: 'index' });
-                } else {
-                  navigation.navigate(item.name);
-                }
+                goTo(item.name);
               }}
             />
           </TutorialTarget>
@@ -74,11 +81,7 @@ export function AtelierTabBar({
               active={current === item.name}
               onPress={() => {
                 track('click', { screen: item.name, props: { element: 'tab' } });
-                if (item.name === 'wallets') {
-                  navigation.navigate('wallets', { screen: 'index' });
-                } else {
-                  navigation.navigate(item.name);
-                }
+                goTo(item.name);
               }}
             />
           </TutorialTarget>

@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  ChevronRight,
   Coins,
   Crown,
   Download,
-  Fingerprint,
   Info,
   LogOut,
   MessageCircle,
   RefreshCw,
-  ScanFace,
+  ShieldCheck,
   User,
 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/auth';
@@ -19,16 +19,6 @@ import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
 import { type ExportFormat } from '@/lib/api';
 import { listExportPeriods, type ExportGrain } from '@/lib/export-periods';
-import {
-  authenticateBiometric,
-  biometricAvailability,
-  disableBiometricKind,
-  enableBiometricKind,
-  isBiometricKindEnabled,
-  labelForKind,
-  readBiometricCredentials,
-  type BiometricKind,
-} from '@/lib/biometrics';
 import { WALLET_CURRENCIES } from '@/lib/currencies';
 import { exportSavedToast, shareExport } from '@/lib/download';
 import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
@@ -51,6 +41,42 @@ const EXPORT_OPTIONS: { value: ExportFormat; label: string; Icon: typeof CsvIcon
   { value: 'xlsx', label: 'Excel (XLSX)', Icon: ExcelIcon },
 ];
 
+/** Ligne de réglage : icône, libellé, valeur courante et chevron (navigation). */
+function Row({
+  icon,
+  label,
+  value,
+  onPress,
+  trailing,
+}: {
+  icon: ReactNode;
+  label: string;
+  value?: string;
+  onPress: () => void;
+  trailing?: ReactNode;
+}) {
+  return (
+    <PressScale onPress={onPress} style={styles.row} accessibilityRole="button" accessibilityLabel={value ? `${label}, ${value}` : label}>
+      <View style={styles.rowL}>
+        {icon}
+        <Text style={styles.k}>{label}</Text>
+        {trailing}
+      </View>
+      {value ? <Text style={styles.v} numberOfLines={1}>{value}</Text> : null}
+      <ChevronRight color={color.textMuted} size={18} />
+    </PressScale>
+  );
+}
+
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.groupT}>{title}</Text>
+      <View style={styles.groupBody}>{children}</View>
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const { logout, isPremium, isOnTrial, requirePremium, user } = useAuth();
   const [exportGrain, setExportGrain] = useState<'all' | ExportGrain>('all');
@@ -70,47 +96,15 @@ export default function SettingsScreen() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState<Partial<Record<ExportFormat, boolean>>>({});
   const [leaving, setLeaving] = useState(false);
-  const [bioKinds, setBioKinds] = useState<BiometricKind[]>([]);
-  const [bioFace, setBioFace] = useState(false);
-  const [bioFinger, setBioFinger] = useState(false);
-  const [bioReady, setBioReady] = useState(false);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    void (async () => {
-      const avail = await biometricAvailability();
-      setBioReady(avail.available && avail.enrolled);
-      setBioKinds(avail.kinds);
-      setBioFace(await isBiometricKindEnabled('face'));
-      setBioFinger(await isBiometricKindEnabled('fingerprint'));
-    })();
-  }, []);
-
-  const toggleBioKind = async (kind: 'face' | 'fingerprint') => {
-    const on = kind === 'face' ? bioFace : bioFinger;
-    const label = labelForKind(kind);
-    if (on) {
-      await disableBiometricKind(kind);
-      if (kind === 'face') setBioFace(false);
-      else setBioFinger(false);
-      toast(`${label} désactivé`, 'ok');
-      return;
-    }
-    const creds = await readBiometricCredentials();
-    if (!creds) {
-      toast('Reconnectez-vous une fois avec e-mail et mot de passe, puis réactivez', 'info');
-      return;
-    }
-    const result = await authenticateBiometric(`Activer ${label}`);
-    if (!result.success) {
-      toast('Authentification annulée', 'info');
-      return;
-    }
-    await enableBiometricKind(kind, creds.email, creds.password);
-    if (kind === 'face') setBioFace(true);
-    else setBioFinger(true);
-    toast(`${label} activé pour la prochaine connexion`, 'ok');
-  };
+  const planLabel = isOnTrial
+    ? 'Essai en cours'
+    : isPremium
+      ? user?.tierLabel || 'Premium'
+      : 'Gratuit';
+  const exportValue = isPremium
+    ? visibleExports.map((o) => (o.value === 'xlsx' ? 'Excel' : o.label)).join(' · ')
+    : 'Premium';
 
   const out = async () => {
     const ok = await confirm({
@@ -125,7 +119,7 @@ export default function SettingsScreen() {
     setLeaving(true);
     try {
       await logout();
-      toast('Session close', 'ok');
+      toast('Vous êtes déconnecté', 'ok');
       router.replace('/(auth)/login');
     } finally {
       setLeaving(false);
@@ -180,104 +174,51 @@ export default function SettingsScreen() {
   return (
     <Screen scroll>
       <ScreenHeader title="Réglages" back />
-      <PressScale onPress={() => setOpen(true)} style={styles.row}>
-        <View style={styles.rowL}>
-          <Coins color={color.primary} size={18} />
-          <Text style={styles.k}>Devise</Text>
-        </View>
-        <Text style={styles.v}>{currency}</Text>
-      </PressScale>
-      <PressScale onPress={() => router.push('/subscription')} style={styles.row}>
-        <View style={styles.rowL}>
-          <Crown color={color.primary} size={18} />
-          <Text style={styles.k}>{isOnTrial ? 'Essai en cours' : isPremium ? 'Premium' : 'Passer Premium'}</Text>
-        </View>
-        <Text style={styles.v}>ouvrir</Text>
-      </PressScale>
-      <PressScale onPress={() => router.push('/profile')} style={styles.row}>
-        <View style={styles.rowL}>
-          <User color={color.primary} size={18} />
-          <Text style={styles.k}>Profil</Text>
-        </View>
-        <Text style={styles.v}>identité</Text>
-      </PressScale>
-      {Platform.OS !== 'web' && bioReady && bioKinds.includes('face') ? (
-        <PressScale
-          onPress={() => void toggleBioKind('face')}
-          style={styles.row}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: bioFace }}>
-          <View style={styles.rowL}>
-            <ScanFace color={color.primary} size={18} />
-            <Text style={styles.k}>Connexion {labelForKind('face')}</Text>
-          </View>
-          <Text style={styles.v}>{bioFace ? 'activée' : 'désactivée'}</Text>
-        </PressScale>
-      ) : null}
-      {Platform.OS !== 'web' && bioReady && bioKinds.includes('fingerprint') ? (
-        <PressScale
-          onPress={() => void toggleBioKind('fingerprint')}
-          style={styles.row}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: bioFinger }}>
-          <View style={styles.rowL}>
-            <Fingerprint color={color.primary} size={18} />
-            <Text style={styles.k}>Connexion {labelForKind('fingerprint')}</Text>
-          </View>
-          <Text style={styles.v}>{bioFinger ? 'activée' : 'désactivée'}</Text>
-        </PressScale>
-      ) : null}
-      <TutorialTarget id="settings-feedback">
-        <PressScale onPress={() => router.push('/feedback')} style={styles.row}>
-          <View style={styles.rowL}>
-            <MessageCircle color={color.primary} size={18} />
-            <Text style={styles.k}>Votre avis</Text>
-          </View>
-          <Text style={styles.v}>écrire</Text>
-        </PressScale>
-      </TutorialTarget>
-      {user?.role === 'admin' ? (
-        <PressScale onPress={() => router.push('/admin-messages')} style={styles.row}>
-          <View style={styles.rowL}>
-            <MessageCircle color={color.primary} size={18} />
-            <Text style={styles.k}>Messages reçus</Text>
-          </View>
-          <Text style={styles.v}>admin</Text>
-        </PressScale>
-      ) : null}
-      {Platform.OS !== 'web' ? (
-        <PressScale onPress={() => router.push('/app-update' as never)} style={styles.row}>
-          <View style={styles.rowL}>
-            <RefreshCw color={color.primary} size={18} />
-            <Text style={styles.k}>Mise à jour</Text>
-          </View>
-          <Text style={styles.v}>vérifier</Text>
-        </PressScale>
-      ) : null}
-      <PressScale onPress={() => router.push('/about')} style={styles.row}>
-        <View style={styles.rowL}>
-          <Info color={color.primary} size={18} />
-          <Text style={styles.k}>À propos</Text>
-        </View>
-        <Text style={styles.v}>Mes Poches</Text>
-      </PressScale>
-      <PressScale
-        onPress={() => {
-          if (!isPremium) {
-            toast('L’export est réservé à Premium', 'info');
-            requirePremium();
-            return;
-          }
-          setExportOpen(true);
-        }}
-        style={styles.row}>
-        <View style={styles.exportHead}>
-          <Download color={color.primary} size={18} />
-          <Text style={styles.k}>Exporter tout</Text>
-          {!isPremium ? <GoldDiamond size={16} /> : null}
-        </View>
-        <Text style={styles.v}>CSV · PDF · XLSX</Text>
-      </PressScale>
+
+      <Group title="Compte">
+        <Row icon={<User color={color.primary} size={18} />} label="Profil" value={user?.name || user?.email} onPress={() => router.push('/profile')} />
+        <Row icon={<Crown color={color.primary} size={18} />} label="Abonnement" value={planLabel} onPress={() => router.push('/subscription')} />
+        <Row icon={<Coins color={color.primary} size={18} />} label="Devise d’affichage" value={currency} onPress={() => setOpen(true)} />
+      </Group>
+
+      <Group title="Sécurité">
+        <Row
+          icon={<ShieldCheck color={color.primary} size={18} />}
+          label="Double authentification"
+          value={user?.twoFactorEnabled ? 'Activée' : 'À activer'}
+          onPress={() => router.push('/security' as never)}
+        />
+      </Group>
+
+      <Group title="Données">
+        <Row
+          icon={<Download color={color.primary} size={18} />}
+          label="Exporter"
+          value={exportValue}
+          trailing={!isPremium ? <GoldDiamond size={14} /> : null}
+          onPress={() => {
+            if (!isPremium) {
+              toast('L’export est réservé à Premium', 'info');
+              requirePremium();
+              return;
+            }
+            setExportOpen(true);
+          }}
+        />
+      </Group>
+
+      <Group title="Aide">
+        <TutorialTarget id="settings-feedback">
+          <Row icon={<MessageCircle color={color.primary} size={18} />} label="Donner mon avis" onPress={() => router.push('/feedback')} />
+        </TutorialTarget>
+        {user?.role === 'admin' ? (
+          <Row icon={<MessageCircle color={color.primary} size={18} />} label="Messages reçus (admin)" onPress={() => router.push('/admin-messages')} />
+        ) : null}
+        {Platform.OS !== 'web' ? (
+          <Row icon={<RefreshCw color={color.primary} size={18} />} label="Rechercher une mise à jour" onPress={() => router.push('/app-update' as never)} />
+        ) : null}
+        <Row icon={<Info color={color.primary} size={18} />} label="À propos de Mes Poches" onPress={() => router.push('/about')} />
+      </Group>
 
       <View style={{ height: 28 }} />
       <Button
@@ -298,11 +239,11 @@ export default function SettingsScreen() {
           }}
         />
       </Sheet>
-      <Sheet open={exportOpen} onClose={() => setExportOpen(false)} title="Exporter tout">
+      <Sheet open={exportOpen} onClose={() => setExportOpen(false)} title="Exporter mes transactions">
         <Text style={styles.exportHint}>
           {user?.canExportRange
             ? 'Cochez les mois, les semaines ou les jours depuis votre inscription, puis le format. Les articles d’un reçu sont inclus.'
-            : 'Le grand livre complet, dans le format de votre choix. Les articles d’un reçu sont inclus.'}
+            : 'Toutes vos transactions, dans le format de votre choix. Les articles d’un reçu sont inclus.'}
         </Text>
         {user?.canExportRange ? (
           <View>
@@ -380,11 +321,13 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
-  rowL: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 12 },
-  k: { fontFamily: font.sansMed, color: color.ivory, fontSize: 16 },
-  exportHead: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 12 },
-  v: { fontFamily: font.sans, color: color.brass, fontSize: 14 },
+  section: { marginTop: 20 },
+  groupT: { fontFamily: font.sansSemi, fontSize: 13, color: color.textSecondary, marginBottom: 6 },
+  groupBody: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.border },
+  row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 56, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.border },
+  rowL: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  k: { fontFamily: font.sansMed, color: color.text, fontSize: 16, flexShrink: 1 },
+  v: { fontFamily: font.sans, color: color.textSecondary, fontSize: 14, maxWidth: "42%" },
   exportHint: { fontFamily: font.sans, color: color.textSecondary, fontSize: 14, marginBottom: 8, lineHeight: 20 },
   ranges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   range: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: color.surface },

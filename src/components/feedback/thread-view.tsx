@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardBottomInset } from '@/hooks/use-keyboard-bottom-inset';
 import type { FeedbackMessage } from '@/lib/api';
@@ -21,7 +21,7 @@ export function ThreadView({
   placeholder: string;
 }) {
   const [draft, setDraft] = useState('');
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const keyboardInset = useKeyboardBottomInset();
   const safeInsets = useSafeAreaInsets();
   const bottomPad = keyboardInset > 0 ? 0 : Math.max(safeInsets.bottom, 8);

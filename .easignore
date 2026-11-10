@@ -1,5 +1,5 @@
-android
-ios
+/android
+/ios
 .expo
 modules/sms-monitor/android/build
 modules/sms-monitor/android/.gradle

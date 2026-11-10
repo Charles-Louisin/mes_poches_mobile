@@ -9,8 +9,6 @@ import { isAbortError, isTimeoutError } from '@/lib/errors';
 import { formatScanError } from '@/lib/scan-errors';
 import { notifyTransactionReady } from '@/lib/pending-notify';
 import { invalidateFinance } from '@/lib/query';
-import { enqueueJob, makeLocalPending, runOrQueue } from '@/lib/offline-queue';
-import { extractPrintedText, parseReceiptText } from '@/lib/ocr';
 import { ReceiptScanOverlay, type ScanPhase } from '@/components/capture/receipt-scan-overlay';
 import { ReceiptSourceSheet } from '@/components/capture/receipt-source-sheet';
 
@@ -74,48 +72,9 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
         if (controller.signal.aborted) return false;
         setImagePreview(previewUri);
 
-        const ocrText = (await extractPrintedText(uri)) || (await extractPrintedText(previewUri));
-        const parsed = ocrText ? parseReceiptText(ocrText) : null;
 
-        const scanned = await runOrQueue(
-          () => pendingTransactionApi.aiScan(image, mimeType, controller.signal),
-          async () => {
-            if (!ocrText?.trim()) {
-              throw new Error(
-                'Pas de connexion pour analyser la photo. Réessayez en ligne, ou photographiez un ticket imprimé plus net.'
-              );
-            }
-            await enqueueJob({
-              kind: 'pending-ocr',
-              data: { text: ocrText.slice(0, 800) },
-              preview: makeLocalPending({
-                source: 'ai_scan',
-                document_type: 'receipt',
-                type: parsed?.type || 'expense',
-                amount: parsed?.amount ?? 0,
-                description: parsed?.description || 'Ticket',
-                raw_text: ocrText.slice(0, 800),
-                date: parsed?.date || new Date().toISOString().slice(0, 10),
-                confidence: parsed?.confidence ?? 0.4,
-                low_confidence_warning:
-                  "Ticket enregistré hors ligne. L’analyse complète se fera à la reconnexion.",
-              }),
-            });
-          }
-        );
+        const created = await pendingTransactionApi.aiScan(image, mimeType, controller.signal);
         if (controller.signal.aborted) return false;
-        if (!scanned.online) {
-          setPhase('success');
-          setMessage('Ticket enregistré hors ligne — synchro à la reconnexion');
-          pendingImage.current = null;
-          await invalidateFinance();
-          setTimeout(() => {
-            reset();
-            router.push('/pending');
-          }, 1200);
-          return true;
-        }
-        const created = scanned.value;
         const count = created.length;
         const expense = created.filter((t) => t.type === 'expense').length;
         const income = created.filter((t) => t.type === 'income').length;

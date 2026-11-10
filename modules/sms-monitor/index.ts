@@ -9,7 +9,6 @@ export {
   openAppDetailsSettings,
   showTransactionReady,
   saveToDownloads,
-  recognizeText,
   listOfflineQueue,
   flushNativeOfflineQueue,
   scheduleDailyReminder,

@@ -50,7 +50,7 @@ export function FeedbackPushListener() {
   useEffect(() => {
     if (Platform.OS === 'web') return;
 
-    const openUrl = (url: string | null) => {
+    const openUrl = (url: string | null | undefined) => {
       if (!url) return;
       openFromNotification(null, url);
     };

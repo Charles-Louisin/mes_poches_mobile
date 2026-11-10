@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import {
   getSmsListenerStatus,
   isMoneyCaptureEnabled,
+  markCaptureDeclined,
+  onCaptureGranted,
+  openRestrictedSettings,
   openSmsNotificationSettings,
   rebindSmsListener,
 } from '@/lib/sms-monitor';
@@ -17,7 +20,9 @@ type ListenerStatus = { enabled: boolean; connected: boolean };
 
 export default function CaptureSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { markCaptureSetupSeen } = useAuth();
+  const { markCaptureSetupSeen, token } = useAuth();
+  const asked = useRef(false);
+  const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [listener, setListener] = useState<ListenerStatus>({ enabled: false, connected: false });
   const captureOn = isMoneyCaptureEnabled();
@@ -27,11 +32,30 @@ export default function CaptureSetupScreen() {
     router.replace('/');
   };
 
+  /** Continuer sans la détection : rien n'est forcé, la fonctionnalité reste coupée sur le téléphone. */
+  const skip = async () => {
+    await markCaptureDeclined();
+    await finish();
+  };
+
   const refresh = useCallback(async () => {
     if (!isMoneyCaptureEnabled()) return;
-    await rebindSmsListener();
-    setListener(await getSmsListenerStatus());
-  }, []);
+    try {
+      await rebindSmsListener();
+      const status = await getSmsListenerStatus();
+      setListener(status);
+      if (status.enabled) {
+        setRefused(false);
+        await onCaptureGranted(token);
+      } else if (asked.current) {
+        // Retour des réglages sans accord (refus ou « paramètre restreint ») : on n'insiste pas.
+        setRefused(true);
+        await markCaptureDeclined();
+      }
+    } catch {
+      setListener({ enabled: false, connected: false });
+    }
+  }, [token]);
 
   useEffect(() => {
     if (Platform.OS !== 'android' || !captureOn) {
@@ -48,7 +72,9 @@ export default function CaptureSetupScreen() {
   const askNotifications = async () => {
     setBusy(true);
     try {
-      await openSmsNotificationSettings();
+      asked.current = true;
+      const opened = await openSmsNotificationSettings();
+      if (!opened) setRefused(true);
     } finally {
       setBusy(false);
       setTimeout(() => void refresh(), 800);
@@ -60,6 +86,9 @@ export default function CaptureSetupScreen() {
   }
 
   const listenerOk = listener.enabled && listener.connected;
+  // Android 13+ : une app installée hors Play Store voit l'accès aux notifications « restreint » tant que
+  // l'utilisateur n'a pas autorisé les paramètres restreints (Infos de l'appli → ⋮).
+  const restrictedPossible = typeof Platform.Version === 'number' && Platform.Version >= 33;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -74,9 +103,20 @@ export default function CaptureSetupScreen() {
         <View style={styles.status}>
           <Text style={styles.statusLabel}>Accès aux notifications</Text>
           <Text style={[styles.statusValue, listenerOk ? styles.ok : styles.off]}>
-            {listenerOk ? 'Activé' : 'Pas encore activé'}
+            {listener.enabled ? 'Activé' : refused ? 'Non accordé' : 'Pas encore activé'}
           </Text>
         </View>
+
+        {refused && !listener.enabled ? (
+          <View style={styles.refused}>
+            <Text style={styles.helpTitle}>Pas de souci</Text>
+            <Text style={styles.restrictedT}>
+              La détection automatique reste désactivée et l’application fonctionne normalement : vous ajoutez vos
+              opérations à la main, par photo ou par la voix. Vous pourrez l’activer plus tard depuis Plus → Détection
+              mobile money.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.help}>
           <Text style={styles.helpTitle}>Une étape</Text>
@@ -84,16 +124,47 @@ export default function CaptureSetupScreen() {
             Appuyez sur Autoriser, puis cochez MES POCHES dans la liste, comme pour la caméra ou le micro.
           </Text>
         </View>
+
+        {restrictedPossible && !listenerOk ? (
+          <View style={styles.restricted}>
+            <Text style={styles.helpTitle}>MES POCHES est grisé ou « Paramètre restreint » ?</Text>
+            <Text style={styles.restrictedT}>
+              C’est normal pour une app installée hors Play Store : Android demande votre accord une seule fois.
+            </Text>
+            {[
+              'Touchez « Ouvrir les infos de l’appli » ci-dessous.',
+              'En haut à droite, touchez ⋮ puis « Autoriser les paramètres restreints ».',
+              'Confirmez avec votre code ou empreinte.',
+              'Revenez ici et touchez « Autoriser l’accès aux notifications ».',
+            ].map((t, i) => (
+              <View key={t} style={styles.rStep}>
+                <Text style={styles.rN}>{i + 1}</Text>
+                <Text style={styles.restrictedT}>{t}</Text>
+              </View>
+            ))}
+            <Button label="Ouvrir les infos de l’appli" variant="line" onPress={() => void openRestrictedSettings()} />
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
-          label="Autoriser l’accès aux notifications"
-          loadingLabel="Ouverture…"
-          onPress={() => void askNotifications()}
-          loading={busy}
-        />
-        <Button label="Plus tard" variant="ghost" onPress={() => void finish()} />
+        {!listener.enabled ? (
+          <Button
+            label={refused ? 'Réessayer d’autoriser' : 'Autoriser l’accès aux notifications'}
+            loadingLabel="Ouverture…"
+            onPress={() => void askNotifications()}
+            loading={busy}
+          />
+        ) : null}
+        {listener.enabled ? (
+          <Button label="Continuer" variant="ghost" onPress={() => void finish()} />
+        ) : (
+          <Button
+            label={refused ? 'Continuer sans la détection' : 'Plus tard'}
+            variant="ghost"
+            onPress={() => void skip()}
+          />
+        )}
       </View>
     </View>
   );
@@ -135,4 +206,9 @@ const styles = StyleSheet.create({
   helpTitle: { fontFamily: font.sansSemi, fontSize: 15, color: color.text },
   helpStep: { fontFamily: font.sansMed, fontSize: 14, lineHeight: 21, color: color.text },
   footer: { gap: 8, paddingTop: 8 },
+  refused: { marginTop: 14, borderRadius: 16, padding: 16, gap: 8, backgroundColor: color.surface },
+  restricted: { marginTop: 14, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: color.border },
+  restrictedT: { flex: 1, fontFamily: font.sans, fontSize: 14, lineHeight: 21, color: color.textSecondary },
+  rStep: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  rN: { width: 22, height: 22, borderRadius: 11, overflow: 'hidden', textAlign: 'center', lineHeight: 22, backgroundColor: color.primaryLight, color: color.primaryDark, fontFamily: font.sansSemi, fontSize: 12 },
 });

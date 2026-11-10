@@ -20,14 +20,14 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, View, type ScrollView } from 'react-native';
+import { StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 export default function CategoriesScreen() {
   const { isPremium } = useAuth();
   const { step, afterCategoryCreated } = useTutorial();
   const toast = useToast();
   const confirm = useConfirm();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const q = useQuery({ queryKey: ['categories'], queryFn: () => categoryApi.getAll() });
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'expense' | 'income'>('expense');
@@ -159,9 +159,9 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   limit: { fontFamily: font.sans, color: color.brassMute, marginBottom: 16, fontSize: 13 },
   kinds: { flexDirection: 'row', gap: 16, marginBottom: 16 },
-  k: { fontFamily: font.sansMed, color: color.brassMute, letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 12 },
+  k: { fontFamily: font.sansSemi, color: color.textMuted, fontSize: 15 },
   kon: { color: color.brass },
-  sec: { marginTop: 28, marginBottom: 8, fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brass },
+  sec: { marginTop: 28, marginBottom: 8, fontFamily: font.sansMed, fontSize: 13, color: color.brass },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

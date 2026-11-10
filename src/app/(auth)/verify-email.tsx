@@ -8,6 +8,7 @@ import { ApiError, getErrorMessage } from '@/lib/errors';
 import { BrandMark } from '@/components/brand/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { color, type as font } from '@/theme/tokens';
@@ -25,8 +26,8 @@ export default function VerifyEmailScreen() {
     if (code.length !== 6 || loading) return;
     setLoading(true);
     try {
-      await verifyEmail(email, code);
-      toast('Compte vérifié', 'ok');
+      const { trialGranted } = await verifyEmail(email, code);
+      toast(trialGranted ? 'Compte vérifié — votre mois Pro commence' : 'Compte vérifié. L’essai gratuit a déjà été utilisé avec cette adresse ou cet appareil : vous démarrez en version gratuite.', trialGranted ? 'ok' : 'info');
       router.replace('/(tabs)');
     } catch (err) {
       toast(getErrorMessage(err, 'Code invalide'), 'err');
@@ -53,23 +54,28 @@ export default function VerifyEmailScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Le sceau" back />
+      <ScreenHeader title="Vérifier l’e-mail" back />
       <View style={styles.seal}>
         <BrandMark size={92} />
       </View>
-      <Text style={styles.copy}>Six chiffres envoyés à {email || 'votre e-mail'}. Sans eux, le livre reste fermé.</Text>
+      <Text style={styles.copy}>Nous avons envoyé un code à 6 chiffres à {email || 'votre adresse e-mail'}. Saisissez-le pour activer votre compte.</Text>
       <Field
         label="Code"
         value={code}
         onChangeText={setCode}
         keyboardType="number-pad"
+        textContentType="oneTimeCode"
+        autoComplete="one-time-code"
         maxLength={6}
+        autoFocus
       />
       <View style={{ height: 24 }} />
       <Button label="Vérifier" loadingLabel="Vérification…" onPress={() => void submit()} loading={loading} disabled={code.length !== 6} />
-      <Text onPress={() => void resend()} style={styles.resend}>
-        {cooldown > 0 ? `Renvoyer dans ${cooldown}s` : 'Renvoyer le code'}
-      </Text>
+      <PressScale onPress={() => void resend()} disabled={cooldown > 0} accessibilityRole="button" style={styles.resendBtn}>
+        <Text style={[styles.resend, cooldown > 0 && styles.resendOff]}>
+          {cooldown > 0 ? `Renvoyer un code dans ${cooldown} s` : 'Renvoyer un code'}
+        </Text>
+      </PressScale>
     </Screen>
   );
 }
@@ -77,5 +83,7 @@ export default function VerifyEmailScreen() {
 const styles = StyleSheet.create({
   seal: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
   copy: { fontFamily: font.sans, color: color.mist, fontSize: 15, lineHeight: 22, marginBottom: 28 },
-  resend: { marginTop: 18, fontFamily: font.sansMed, color: color.brass, textAlign: 'center' },
+  resendBtn: { marginTop: 18, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
+  resend: { fontFamily: font.sansMed, color: color.primary, textAlign: 'center', fontSize: 15 },
+  resendOff: { color: color.textMuted },
 });

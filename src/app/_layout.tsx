@@ -6,7 +6,7 @@ import { SessionGuard } from '@/components/session-guard';
 import { TelemetryListener } from '@/components/telemetry-listener';
 import { QuotaPromptHost } from '@/components/subscription/quota-prompt';
 import { TutorialOverlay } from '@/components/tutorial/tutorial-overlay';
-import { OfflineBanner } from '@/components/ui/offline-banner';
+import { OfflineScreen } from '@/components/ui/offline-screen';
 import { AuthProvider } from '@/contexts/auth';
 import { ConfirmProvider } from '@/contexts/confirm';
 import { CurrencyProvider } from '@/contexts/currency';
@@ -59,7 +59,7 @@ export default function RootLayout() {
                 <ReceiptScanProvider>
                   <VoiceNoteProvider>
                     <StatusBar style="dark" />
-                    <OfflineBanner />
+                    <OfflineScreen />
                     <TelemetryListener />
                     <FeedbackPushListener />
                     <PendingDuplicateListener />
@@ -88,6 +88,7 @@ export default function RootLayout() {
                       />
                       <Stack.Screen name="objectifs" />
                       <Stack.Screen name="settings" />
+                      <Stack.Screen name="security" />
                       <Stack.Screen name="app-update" />
                       <Stack.Screen name="feedback" />
                       <Stack.Screen name="admin-messages" />

@@ -7,7 +7,6 @@ import { categoryApi, plannedExpenseApi, transactionApi, walletApi } from '@/lib
 import { buildMonthOptions, filterTransactions, type TransactionFiltersState } from '@/lib/filterTransactions';
 import { PLAN_LIMITS } from '@/lib/planLimits';
 import { getErrorMessage } from '@/lib/errors';
-import { localTransactions } from '@/lib/offline-queue';
 import { invalidateFinance } from '@/lib/query';
 import { defaultOpenDayKey, groupTransactionsByDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth';
@@ -49,13 +48,7 @@ export default function JournalScreen() {
 
   const txs = useQuery({
     queryKey: ['transactions'],
-    queryFn: async () => {
-      const [remote, local] = await Promise.all([
-        transactionApi.getAll({ limit: 200 }).catch(() => []),
-        localTransactions(),
-      ]);
-      return [...local, ...remote];
-    },
+    queryFn: () => transactionApi.getAll({ limit: 200 }).catch(() => []),
   });
   const planned = useQuery({
     queryKey: ['planned'],
@@ -228,10 +221,7 @@ export default function JournalScreen() {
                       tx={t}
                       formatAmount={formatAmount}
                       exportRow
-                      onPress={() => {
-                        if (t._id.startsWith('local-')) return;
-                        router.push(`/transactions/${t._id}`);
-                      }}
+                      onPress={() => router.push(`/transactions/${t._id}`)}
                     />
                   ))
                 : null}

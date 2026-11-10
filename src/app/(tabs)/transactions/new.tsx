@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Plus, Trash2 } from 'lucide-react-native';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react-native';
 import {
   categoryApi,
   plannedExpenseApi,
@@ -15,7 +15,6 @@ import {
 import { getTodayUtcDateInputValue, isFutureUtcDay } from '@/lib/plannedExpenseDates';
 import { invalidateFinance } from '@/lib/query';
 import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
-import { enqueueJob, runOrQueue } from '@/lib/offline-queue';
 import { useAuth } from '@/contexts/auth';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
@@ -32,10 +31,11 @@ import { color, radius, space, type as font } from '@/theme/tokens';
 import { track } from '@/lib/telemetry';
 
 type Kind = 'expense' | 'income' | 'transfer';
-type Line = { id: string; description: string; amount: string };
+/** categoryId vide = la ligne prend la catégorie de la transaction. */
+type Line = { id: string; description: string; amount: string; categoryId: string };
 
 function newLine(): Line {
-  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, description: '', amount: '' };
+  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, description: '', amount: '', categoryId: '' };
 }
 
 function todayLocal(): Date {
@@ -64,6 +64,8 @@ export default function NewTransactionScreen() {
   const [toSavings, setToSavings] = useState(false);
   const [goalId, setGoalId] = useState('');
   const [pick, setPick] = useState<'wallet' | 'dest' | 'cat' | 'goal' | null>(null);
+  /** Ligne dont on choisit la catégorie (feuille de sélection). */
+  const [lineCatFor, setLineCatFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [hideHelp, setHideHelp] = useState(!!user?.hidePlannedExpensesHelp);
@@ -76,6 +78,7 @@ export default function NewTransactionScreen() {
         .map((line) => ({
           description: line.description.trim(),
           amount: parseFloat(line.amount.replace(',', '.')),
+          categoryId: line.categoryId,
         }))
         .filter((line) => !Number.isNaN(line.amount) && line.amount > 0),
     [lines]
@@ -97,6 +100,8 @@ export default function NewTransactionScreen() {
         if (kind !== 'transfer') {
           const c = await categoryApi.getAll(kind);
           setCategories(Array.isArray(c) ? c : []);
+          // Catégories de l'autre type : on remet chaque ligne sur « comme la transaction ».
+          setLines((prev) => prev.map((l) => (l.categoryId ? { ...l, categoryId: '' } : l)));
         } else {
           setCategories([]);
         }
@@ -120,6 +125,8 @@ export default function NewTransactionScreen() {
 
   const walletName = selectedWallet?.name ?? 'Choisir';
   const catName = categories.find((c) => c._id === categoryId)?.name ?? 'Sans catégorie';
+  const lineCatName = (id: string) =>
+    id ? categories.find((c) => c._id === id)?.name ?? 'Catégorie' : `Comme la transaction (${catName})`;
   const destName = wallets.find((w) => w._id === destId)?.name ?? 'Destination';
   const goalName = goals.find((g) => g._id === goalId)?.title ?? 'Objectif';
   const futureExpense = kind === 'expense' && isFutureUtcDay(date);
@@ -172,101 +179,52 @@ export default function NewTransactionScreen() {
               parsedLines.map((line) => ({
                 description: line.description || desc,
                 amount: line.amount,
+                // Catégorie propre à la ligne, sinon celle de la transaction.
+                category_id: line.categoryId || categoryId || null,
               }))
             )
           : undefined;
-      const result = await runOrQueue(
-        async () => {
-          if (toSavings) {
-            await transactionApi.createIncome({
-              amount: n,
-              description: desc,
-              date,
-              savings_goal_id: goalId,
-            });
-          } else if (kind === 'expense' && futureExpense) {
-            await plannedExpenseApi.create({
-              amount: n,
-              wallet_id: walletId,
-              category_id: categoryId || undefined,
-              description: desc,
-              scheduled_date: date,
-            });
-          } else if (kind === 'income') {
-            await transactionApi.createIncome({
-              amount: n,
-              wallet_id: walletId,
-              category_id: categoryId || undefined,
-              description: desc,
-              date,
-              ...(line_items && line_items.length > 0 ? { line_items } : {}),
-            });
-          } else if (kind === 'expense') {
-            await transactionApi.createExpense({
-              amount: n,
-              wallet_id: walletId,
-              category_id: categoryId || undefined,
-              description: desc,
-              date,
-              ...(line_items && line_items.length > 0 ? { line_items } : {}),
-            });
-          } else {
-            await transactionApi.createTransfer({
-              amount: n,
-              wallet_id: walletId,
-              destination_wallet_id: destId,
-              description: desc,
-              date,
-            });
-          }
-        },
-        async () => {
-          if (toSavings || (kind === 'expense' && futureExpense)) {
-            throw new Error('OFFLINE_UNSUPPORTED');
-          }
-          if (kind === 'income') {
-            await enqueueJob({
-              kind: 'tx-income',
-              data: {
-                amount: n,
-                wallet_id: walletId,
-                category_id: categoryId || undefined,
-                description: desc,
-                date,
-                ...(line_items && line_items.length > 0 ? { line_items } : {}),
-              },
-            });
-          } else if (kind === 'expense') {
-            await enqueueJob({
-              kind: 'tx-expense',
-              data: {
-                amount: n,
-                wallet_id: walletId,
-                category_id: categoryId || undefined,
-                description: desc,
-                date,
-                ...(line_items && line_items.length > 0 ? { line_items } : {}),
-              },
-            });
-          } else {
-            await enqueueJob({
-              kind: 'tx-transfer',
-              data: {
-                amount: n,
-                wallet_id: walletId,
-                destination_wallet_id: destId,
-                description: desc,
-                date,
-              },
-            });
-          }
-        }
-      );
-      if (!result.online) {
-        toast('Enregistré hors ligne — synchro à la reconnexion', 'ok');
-        await invalidateFinance();
-        router.replace('/(tabs)/transactions');
-        return;
+      if (toSavings) {
+        await transactionApi.createIncome({
+          amount: n,
+          description: desc,
+          date,
+          savings_goal_id: goalId,
+        });
+      } else if (kind === 'expense' && futureExpense) {
+        await plannedExpenseApi.create({
+          amount: n,
+          wallet_id: walletId,
+          category_id: categoryId || undefined,
+          description: desc,
+          scheduled_date: date,
+        });
+      } else if (kind === 'income') {
+        await transactionApi.createIncome({
+          amount: n,
+          wallet_id: walletId,
+          category_id: categoryId || undefined,
+          description: desc,
+          date,
+          ...(line_items && line_items.length > 0 ? { line_items } : {}),
+        });
+      } else if (kind === 'expense') {
+        await transactionApi.createExpense({
+          amount: n,
+          wallet_id: walletId,
+          category_id: categoryId || undefined,
+          description: desc,
+          date,
+          ...(line_items && line_items.length > 0 ? { line_items } : {}),
+        });
+      } else {
+        await transactionApi.createTransfer({
+          amount: n,
+          wallet_id: walletId,
+          destination_wallet_id: destId,
+          description: desc,
+          date,
+        });
       }
       if (toSavings) toast('Épargne alimentée', 'ok');
       else if (kind === 'expense' && futureExpense) toast('Dépense future enregistrée', 'ok');
@@ -282,10 +240,6 @@ export default function NewTransactionScreen() {
       await invalidateFinance();
       router.replace('/(tabs)/transactions');
     } catch (err) {
-      if (err instanceof Error && err.message === 'OFFLINE_UNSUPPORTED') {
-        toast('Cette action nécessite une connexion', 'info');
-        return;
-      }
       if (isPremiumRequiredError(err)) {
         toast(err.message, 'info');
         router.push('/subscription');
@@ -375,6 +329,19 @@ export default function NewTransactionScreen() {
                     </PressScale>
                   ) : null}
                 </View>
+                {lines.length > 1 ? (
+                  <PressScale
+                    onPress={() => setLineCatFor(line.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Catégorie de la ligne : ${lineCatName(line.categoryId)}`}
+                    style={styles.lineCat}>
+                    <Text style={styles.lineCatK}>Catégorie</Text>
+                    <Text style={[styles.lineCatV, !line.categoryId && styles.lineCatInherit]} numberOfLines={1}>
+                      {lineCatName(line.categoryId)}
+                    </Text>
+                    <ChevronDown color={color.primary} size={14} />
+                  </PressScale>
+                ) : null}
               </View>
             ))}
             <PressScale onPress={() => setLines((prev) => [...prev, newLine()])} style={styles.addLine}>
@@ -502,6 +469,19 @@ export default function NewTransactionScreen() {
           <OptionList options={goals.map((g) => ({ value: g._id, label: g.title }))} value={goalId} onChange={(v) => { setGoalId(v); setPick(null); }} />
         ) : null}
       </Sheet>
+      <Sheet open={lineCatFor !== null} onClose={() => setLineCatFor(null)} title="Catégorie de la ligne">
+        <OptionList
+          options={[
+            { value: '', label: `Comme la transaction (${catName})` },
+            ...categories.map((c) => ({ value: c._id, label: c.name })),
+          ]}
+          value={lines.find((l) => l.id === lineCatFor)?.categoryId ?? ''}
+          onChange={(v) => {
+            setLines((prev) => prev.map((l) => (l.id === lineCatFor ? { ...l, categoryId: v } : l)));
+            setLineCatFor(null);
+          }}
+        />
+      </Sheet>
       <PlannedHelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} onHidden={() => setHideHelp(true)} />
     </Screen>
   );
@@ -524,6 +504,10 @@ const styles = StyleSheet.create({
   balance: { fontFamily: font.sansMed, fontSize: 13, color: color.textSecondary },
   blockT: { fontFamily: font.sansMed, fontSize: 14, color: color.text },
   line: { backgroundColor: color.surface, borderRadius: radius.md, padding: 10, borderWidth: 1, borderColor: color.border },
+  lineCat: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingVertical: 6, minHeight: 36 },
+  lineCatK: { fontFamily: font.sans, fontSize: 13, color: color.textMuted },
+  lineCatV: { flexShrink: 1, fontFamily: font.sansMed, fontSize: 13, color: color.primary },
+  lineCatInherit: { color: color.textSecondary },
   lineRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   lineLabel: { flex: 1.4, minWidth: 0 },
   lineAmount: { width: 108 },

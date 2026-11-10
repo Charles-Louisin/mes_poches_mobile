@@ -1,16 +1,30 @@
 import { fetchAuthRaw, fetchPublic } from './api-client';
 import { ApiError } from './errors';
 import type { MeUser } from './api';
+import { getDeviceTrust } from './device-trust';
 
 export interface AuthPayload {
   user: MeUser;
   token: string;
+  /** Jeton d'appareil approuvé (double authentification), à conserver. */
+  deviceTrust?: string;
+  /** Faux si l'identité avait déjà eu l'essai gratuit (compte recréé). */
+  trialGranted?: boolean;
+}
+
+/** Données renvoyées quand la double authentification demande un code. */
+export interface TwoFactorChallenge {
+  challenge: string;
+  emailHint: string;
+  cooldownSeconds?: number;
 }
 
 export async function loginRequest(email: string, password: string): Promise<AuthPayload> {
+  const trust = await getDeviceTrust();
   const { response, data } = await fetchAuthRaw('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+    headers: trust ? { 'X-Device-Trust': trust } : undefined,
   });
   if (!response.ok || !data.success) {
     throw new ApiError(data.message || 'Connexion impossible', {
@@ -113,4 +127,26 @@ export async function checkRegisterAvailability(params: { email?: string; name?:
     email?: { available: boolean };
     name?: { available: boolean };
   }>(`/auth/check-availability?${qs.toString()}`);
+}
+
+export async function twoFactorLoginRequest(challenge: string, code: string, trustDevice: boolean): Promise<AuthPayload> {
+  const { response, data } = await fetchAuthRaw('/auth/login/2fa', {
+    method: 'POST',
+    body: JSON.stringify({ challenge, code, trustDevice }),
+  });
+  if (!response.ok || !data.success) {
+    throw new ApiError(data.message || 'Code invalide', { code: data.code, status: response.status });
+  }
+  return data.data as AuthPayload;
+}
+
+export async function twoFactorResendRequest(challenge: string): Promise<{ cooldownSeconds?: number }> {
+  const { response, data } = await fetchAuthRaw('/auth/login/2fa/resend', {
+    method: 'POST',
+    body: JSON.stringify({ challenge }),
+  });
+  if (!response.ok || !data.success) {
+    throw new ApiError(data.message || 'Envoi impossible', { code: data.code, status: response.status });
+  }
+  return (data.data as { cooldownSeconds?: number }) ?? {};
 }

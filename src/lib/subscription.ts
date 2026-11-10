@@ -49,3 +49,22 @@ export function getUpgradePath(): string {
 export function isSubscriptionPaymentEnabled(): boolean {
   return process.env.EXPO_PUBLIC_PAYMENTS_ENABLED === 'true';
 }
+
+const TIER_RANK = { free: 0, pro: 1, pro_plus: 2, business: 3 } as const;
+
+/** Palier PAYÉ encore actif (hors essai) — même règle que le backend (activePaidTier). */
+export function activePaidTier(
+  user: { subscriptionTier?: keyof typeof TIER_RANK; accessTier?: keyof typeof TIER_RANK; premiumSource?: string | null; lifetime?: boolean } | null | undefined
+): Exclude<keyof typeof TIER_RANK, 'free'> | null {
+  const tier = user?.subscriptionTier;
+  if (!tier || tier === 'free') return null;
+  if (user?.lifetime) return tier;
+  if (user?.premiumSource !== 'paid') return null;
+  if (!user?.accessTier || user.accessTier === 'free') return null;
+  return tier;
+}
+
+/** Un palier inférieur au forfait payé actif ne peut pas être acheté. */
+export function isTierBelowActive(tier: keyof typeof TIER_RANK, active: keyof typeof TIER_RANK | null): boolean {
+  return active != null && TIER_RANK[tier] < TIER_RANK[active];
+}

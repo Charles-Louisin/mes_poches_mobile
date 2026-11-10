@@ -156,12 +156,22 @@ export const subscriptionApi = {
   createCheckout: (
     period: import('./planLimits').BillingPeriod,
     paymentMethod: 'all' | 'orange' | 'mtn' = 'all',
-    tier: import('./planLimits').PaidTier = 'pro'
+    tier: import('./planLimits').PaidTier = 'pro',
+    webReturnOrigin?: string
   ) =>
-    fetchApi<{ paymentUrl: string; transactionId: string }>('/subscription/checkout', {
-      method: 'POST',
-      body: JSON.stringify({ period, payment_method: paymentMethod, tier }),
-    }),
+    fetchApi<{ paymentUrl: string; transactionId: string; returnUrl?: string; provider?: string }>(
+      '/subscription/checkout',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          period,
+          payment_method: paymentMethod,
+          tier,
+          client: webReturnOrigin ? 'web' : 'app',
+          ...(webReturnOrigin ? { return_origin: webReturnOrigin } : {}),
+        }),
+      }
+    ),
   verifyPayment: (transactionId: string) =>
     fetchApi<{
       status: string;
@@ -303,6 +313,15 @@ export interface TransactionLineItem {
   quantity?: number;
   unit_amount?: number;
   type?: 'income' | 'expense';
+  /** Catégorie propre à la ligne (id, ou objet peuplé) ; null = celle de la transaction. */
+  category_id?: string | { _id: string; name?: string } | null;
+}
+
+/** Id de catégorie d'une ligne, quelle que soit sa forme (id ou objet peuplé). */
+export function lineCategoryId(item: Pick<TransactionLineItem, 'category_id'>): string {
+  const c = item.category_id;
+  if (!c) return '';
+  return typeof c === 'string' ? c : c._id;
 }
 
 /** Retire les champs Mongo (_id…) refusés par la validation de l'API. */
@@ -315,6 +334,7 @@ export function sanitizeLineItems(
     ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
     ...(item.unit_amount !== undefined ? { unit_amount: item.unit_amount } : {}),
     ...(item.type !== undefined ? { type: item.type } : {}),
+    ...(item.category_id !== undefined ? { category_id: lineCategoryId(item) || null } : {}),
   }));
 }
 
@@ -494,6 +514,19 @@ export const authApi = {
     }),
   deleteMe: () =>
     fetchApi<{ message: string }>('/auth/me', { method: 'DELETE' }),
+};
+
+/** Double authentification (code par e-mail). */
+export const twoFactorApi = {
+  sendCode: (purpose: 'enable' | 'disable') =>
+    fetchApi<{ cooldownSeconds: number; emailHint: string }>('/auth/2fa/code', {
+      method: 'POST',
+      body: JSON.stringify({ purpose }),
+    }),
+  enable: (code: string) =>
+    fetchApi<{ user: MeUser; deviceTrust?: string }>('/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+  disable: (code: string) =>
+    fetchApi<{ user: MeUser }>('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
 };
 
 export const feedbackApi = {
@@ -685,6 +718,9 @@ export interface MeUser {
   premiumSource?: 'trial' | 'paid' | 'lifetime' | null;
   isPremium?: boolean;
   isOnTrial?: boolean;
+  /** Double authentification par e-mail active. */
+  twoFactorEnabled?: boolean;
+  authProvider?: "email" | "google" | "both";
   currency?: string;
   hidePlannedExpensesHelp?: boolean;
   created_at: string;

@@ -14,7 +14,6 @@ import {
   walletApi,
 } from '@/lib/api';
 import { STORAGE_KEYS, getString, setString } from '@/lib/storage';
-import { localPendings, localTransactions } from '@/lib/offline-queue';
 import { formatDate, sortTransactionsByDateDesc } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth';
 import { useCurrency } from '@/contexts/currency';
@@ -95,7 +94,7 @@ export default function HomeScreen() {
     queryKey: ['home', isPremium],
     queryFn: async () => {
       const now = new Date();
-      const [wallets, balance, txs, stats, pending, budgets, goals, localTx, localPending] = await Promise.all([
+      const [wallets, balance, txs, stats, pending, budgets, goals] = await Promise.all([
         walletApi.getAll().catch(() => []),
         walletApi.getTotalBalance().catch(() => ({ total: 0, totalSavings: 0, wallets: [] })),
         transactionApi.getAll({ limit: 200 }).catch(() => []),
@@ -105,17 +104,15 @@ export default function HomeScreen() {
           ? budgetApi.getAll(now.getFullYear(), now.getMonth() + 1).catch(() => [])
           : Promise.resolve([]),
         isPremium ? savingsGoalApi.getAll().catch(() => []) : Promise.resolve([]),
-        localTransactions(),
-        localPendings(),
         categoryApi.getAll().catch(() => []),
       ]);
       return {
         wallets,
         total: balance.total,
         savings: balance.totalSavings ?? 0,
-        recent: sortTransactionsByDateDesc([...localTx, ...txs]).slice(0, 5),
+        recent: sortTransactionsByDateDesc(txs).slice(0, 5),
         stats,
-        pending: pending.count + localPending.length,
+        pending: pending.count,
         budgets: Array.isArray(budgets) ? budgets : [],
         goals: Array.isArray(goals) ? goals : [],
       };
@@ -162,7 +159,7 @@ export default function HomeScreen() {
           hidden={hidden}
           onToggleHide={toggleHide}
           holder={user?.name || greeting}
-          planLabel={isOnTrial ? 'essai gratuit' : isPremium ? 'Premium' : 'gratuit'}
+          planLabel={isOnTrial ? 'essai Pro' : isPremium ? user?.tierLabel || 'Premium' : 'gratuit'}
           admin={user?.role === 'admin'}
         />
       </Enter>

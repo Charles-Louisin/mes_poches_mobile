@@ -14,7 +14,6 @@ import { blockIfQuotaFull, quotaPromptFromError } from '@/components/subscriptio
 import { getErrorMessage, isAbortError, isPremiumRequiredError, isTimeoutError } from '@/lib/errors';
 import { formatScanError } from '@/lib/scan-errors';
 import { MicPermissionError, ensureMicPermission, openAppSettings } from '@/lib/mic-permission';
-import { isOnline } from '@/lib/network';
 import { notifyTransactionReady } from '@/lib/pending-notify';
 import { invalidateFinance } from '@/lib/query';
 import { abortVoiceCapture, audioUnavailableMessage, canUseAudioCapture, startVoiceCapture, stopVoiceCapture } from '@/lib/voice-capture';
@@ -118,11 +117,6 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
       abortRef.current?.abort();
       abortRef.current = controller;
       try {
-        if (!(await isOnline())) {
-          setPhase('idle');
-          toast('La dictée nécessite une connexion. Réessayez en ligne.', 'err');
-          return;
-        }
         const created = await pendingTransactionApi.voiceNote(payload, controller.signal);
         if (controller.signal.aborted) return;
         const count = created.length;

@@ -100,5 +100,5 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   mail: { fontFamily: font.sans, color: color.mist, marginTop: 4 },
   meta: { fontFamily: font.sansSemi, fontSize: 16, color: color.primaryDark, marginTop: 12 },
-  admin: { letterSpacing: 1.2, textTransform: 'uppercase' },
+  admin: { },
 });

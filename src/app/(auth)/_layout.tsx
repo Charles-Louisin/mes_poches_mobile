@@ -13,6 +13,7 @@ export default function AuthLayout() {
       <Stack.Screen name="login" options={{ animation: 'fade', animationDuration: 520 }} />
       <Stack.Screen name="verify-email" options={{ animation: 'slide_from_bottom', animationDuration: 520 }} />
       <Stack.Screen name="forgot-password" />
+      <Stack.Screen name="two-factor" />
     </Stack>
   );
 }

@@ -6,7 +6,7 @@ const { URL } = require('url');
 
 const BACKEND_API = (
   process.env.EXPO_PUBLIC_API_URL ||
-  'https://mespochesbackend-production-dafd.up.railway.app/api'
+  'https://mespochesbackend-production-9835.up.railway.app/api'
 ).replace(/\/$/, '');
 
 function proxyToBackend(req, res) {
@@ -52,6 +52,9 @@ config.resolver.blockList = [
   /[\\/]android[\\/]\.cxx[\\/]/,
   /[\\/]\.transforms[\\/]/,
   /[\\/]\.git[\\/]/,
+  // Exports web et caches : inutiles à surveiller (Windows : limite de fichiers ouverts → EMFILE).
+  /[\\/]mes-poches-mobile[\\/]dist[\\/]/,
+  /[\\/]node_modules[\\/]\.cache[\\/]/,
 ];
 if (process.platform === 'win32') {
   config.maxWorkers = 2;

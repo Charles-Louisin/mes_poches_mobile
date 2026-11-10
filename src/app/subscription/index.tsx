@@ -4,7 +4,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { useAuth } from '@/contexts/auth';
 import { useToast } from '@/contexts/toast';
 import type { PaidTier } from '@/lib/planLimits';
-import { formatPremiumUntil, getTrialDaysLeft, isSubscriptionPaymentEnabled } from '@/lib/subscription';
+import { activePaidTier, formatPremiumUntil, getTrialDaysLeft, isSubscriptionPaymentEnabled } from '@/lib/subscription';
 import { track } from '@/lib/telemetry';
 import { color, type as font } from '@/theme/tokens';
 import { router } from 'expo-router';
@@ -14,6 +14,7 @@ export default function SubscriptionScreen() {
   const { user, isPremium, isOnTrial } = useAuth();
   const toast = useToast();
   const isAdmin = user?.role === 'admin';
+  const activeTier = activePaidTier(user);
 
   const choose = (tier: PaidTier) => {
     if (!isSubscriptionPaymentEnabled()) {
@@ -41,7 +42,7 @@ export default function SubscriptionScreen() {
     <Screen scroll>
       <ScreenHeader title="Premium" back />
       <Text style={[styles.lede, (isOnTrial || isAdmin) && styles.ledeStrong]}>{status}</Text>
-      <PlanCards onSelect={choose} />
+      <PlanCards onSelect={choose} activeTier={activeTier} />
       <View style={{ height: 8 }} />
     </Screen>
   );

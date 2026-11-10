@@ -8,15 +8,18 @@ import {
   type ReactNode,
 } from 'react';
 import * as Linking from 'expo-linking';
+import { AppState } from 'react-native';
 import { router } from 'expo-router';
 import { authApi, type MeUser, walletApi } from '@/lib/api';
 import {
   loginRequest,
   registerRequest,
   resetPasswordRequest,
+  twoFactorLoginRequest,
   verifyEmailRequest,
   type AuthPayload,
 } from '@/lib/auth';
+import { saveDeviceTrust } from '@/lib/device-trust';
 import { ApiError } from '@/lib/errors';
 import { track } from '@/lib/telemetry';
 import { logoutRemote } from '@/lib/api-client';
@@ -43,7 +46,10 @@ type AuthContextValue = {
   loginWithGoogle: () => Promise<void>;
   completeGoogleSession: (payload: AuthPayload) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<{ email: string }>;
-  verifyEmail: (email: string, code: string) => Promise<void>;
+  /** Retourne false si l'essai gratuit n'a pas été accordé (identité déjà connue). */
+  verifyEmail: (email: string, code: string) => Promise<{ trialGranted: boolean }>;
+  /** Étape 2 de la connexion quand la double authentification est active. */
+  completeTwoFactorLogin: (challenge: string, code: string, trustDevice: boolean) => Promise<void>;
   resetPassword: (email: string, code: string, password: string) => Promise<void>;
   setPendingEmail: (email: string | null) => Promise<void>;
   refreshMe: () => Promise<MeUser | null>;
@@ -111,7 +117,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Accès aux notifications accordé ou retiré pendant que l'app était en arrière-plan :
+  // on rallume ou on coupe la détection native au retour au premier plan.
+  useEffect(() => {
+    if (!token) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void syncSmsMonitorToken(token);
+    });
+    return () => sub.remove();
+  }, [token]);
+
   const persistSession = useCallback(async (payload: AuthPayload) => {
+    if (payload.deviceTrust) await saveDeviceTrust(payload.deviceTrust);
     await saveToken(payload.token);
     await setJson(STORAGE_KEYS.user, payload.user);
     await remove(STORAGE_KEYS.pendingEmail);
@@ -210,6 +227,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const payload = await verifyEmailRequest(email.trim().toLowerCase(), code);
       await persistSession(payload);
       await startSetupGuide(payload.user.id, true);
+      return { trialGranted: payload.trialGranted !== false };
+    },
+    [persistSession]
+  );
+
+  const completeTwoFactorLogin = useCallback(
+    async (challenge: string, code: string, trustDevice: boolean) => {
+      const payload = await twoFactorLoginRequest(challenge, code, trustDevice);
+      await persistSession(payload);
+      await maybeStartSetupIfEmpty(payload.user.id);
     },
     [persistSession]
   );
@@ -266,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeGoogleSession,
       register,
       verifyEmail,
+      completeTwoFactorLogin,
       resetPassword,
       setPendingEmail,
       refreshMe,
@@ -286,6 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeGoogleSession,
       register,
       verifyEmail,
+      completeTwoFactorLogin,
       resetPassword,
       setPendingEmail,
       refreshMe,

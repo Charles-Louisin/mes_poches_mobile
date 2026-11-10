@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import * as Updates from 'expo-updates';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   applyAppUpdate,
@@ -9,6 +10,8 @@ import {
   runningUpdateLabel,
 } from '@/lib/app-updates';
 import { getErrorMessage } from '@/lib/errors';
+import { checkApkUpdate, installedVersion, type ApkUpdate } from '@/lib/app-version';
+import { ApkUpdateModal } from '@/components/apk-update-modal';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
@@ -21,9 +24,12 @@ export default function AppUpdateScreen() {
   const [installing, setInstalling] = useState(false);
   const [available, setAvailable] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [apk, setApk] = useState<ApkUpdate | null>(null);
+  const [apkOpen, setApkOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (Platform.OS === 'web') return;
+    setApk(await checkApkUpdate(true));
     if (!otaUpdatesActive()) {
       setAvailable(false);
       setMessage(null);
@@ -76,9 +82,26 @@ export default function AppUpdateScreen() {
       </Text>
 
       <View style={styles.box}>
-        <Text style={styles.k}>Version en cours</Text>
-        <Text style={styles.v}>{runningUpdateLabel()}</Text>
+        <Text style={styles.k}>Version installée</Text>
+        <Text style={styles.v}>
+          {installedVersion()} · {runningUpdateLabel()}
+        </Text>
+        <Text style={styles.k}>
+          Canal {Updates.channel ?? '—'} · runtime {Updates.runtimeVersion ?? '—'}
+        </Text>
       </View>
+
+      {apk ? (
+        <View style={styles.apk}>
+          <Text style={styles.apkT}>Nouvelle version {apk.latestVersion} à installer</Text>
+          <Text style={styles.note}>
+            Cette version change l’application elle-même : elle se télécharge depuis notre lien direct, puis s’installe
+            par-dessus l’actuelle. Vos données sont conservées.
+          </Text>
+          <Button label="Télécharger la nouvelle version" onPress={() => setApkOpen(true)} />
+        </View>
+      ) : null}
+      {apk && apkOpen ? <ApkUpdateModal update={{ ...apk, mandatory: false }} onLater={() => setApkOpen(false)} /> : null}
 
       {Platform.OS === 'web' ? (
         <Text style={styles.note}>Les mises à jour automatiques ne s’appliquent pas sur le web.</Text>
@@ -133,4 +156,6 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  apk: { backgroundColor: color.primaryVeryLight, borderRadius: 14, borderWidth: 1, borderColor: color.primaryLight, padding: 16, marginBottom: 24 },
+  apkT: { fontFamily: font.sansSemi, fontSize: 16, color: color.text, marginBottom: 6 },
 });

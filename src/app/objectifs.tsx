@@ -319,7 +319,7 @@ export default function ObjectifsScreen() {
 
 const styles = StyleSheet.create({
   gate: { fontFamily: font.displayItalic, fontSize: 26, color: color.ivory, lineHeight: 32 },
-  sec: { marginTop: 22, marginBottom: 8, fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brass },
+  sec: { marginTop: 24, marginBottom: 8, fontFamily: font.sansSemi, fontSize: 16, color: color.text },
   block: { marginBottom: 14 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
   name: { fontFamily: font.sans, color: color.ivory, flex: 1, paddingRight: 12 },
@@ -334,6 +334,6 @@ const styles = StyleSheet.create({
   link: { fontFamily: font.sansMed, color: color.brass },
   add: { paddingVertical: 10, marginBottom: 4 },
   addT: { fontFamily: font.sansMed, color: color.brass, fontSize: 13 },
-  pickL: { fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brassMute },
+  pickL: { fontFamily: font.sansMed, fontSize: 13, color: color.brassMute },
   pickV: { fontFamily: font.sans, fontSize: 17, color: color.ivory, marginTop: 6, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.lineStrong },
 });

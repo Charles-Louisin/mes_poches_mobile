@@ -204,6 +204,11 @@ export default function TransactionDetailScreen() {
                   return next;
                 });
               }}
+              categories={q.data?.categories ?? []}
+              parentCategoryName={catName}
+              onCategoryChange={(index, catId) =>
+                setLineItems((prev) => prev.map((line, i) => (i === index ? { ...line, category_id: catId } : line)))
+              }
             />
           ) : null}
           <Button label="Enregistrer" loadingLabel="Enregistrement…" onPress={() => void save()} loading={saving} />
@@ -216,7 +221,12 @@ export default function TransactionDetailScreen() {
             {nameOf(tx.wallet_id as { name: string } | string)} · {nameOf(tx.category_id as { name: string } | string, 'sans catégorie')}
           </Text>
           {(tx.line_items?.length ?? 0) > 1 ? (
-            <LineItems items={tx.line_items} formatAmount={formatAmount} />
+            <LineItems
+              items={tx.line_items}
+              formatAmount={formatAmount}
+              categories={q.data?.categories ?? []}
+              parentCategoryName={catName}
+            />
           ) : null}
           <Text style={styles.stamp}>Créée le {formatDateTime(tx.created_at)}</Text>
           {tx.updated_at || tx.updatedAt ? (
@@ -270,22 +280,19 @@ export default function TransactionDetailScreen() {
 const styles = StyleSheet.create({
   kicker: {
     fontFamily: font.sansMed,
-    fontSize: 11,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
+    fontSize: 13,
     color: color.brass,
-    marginBottom: 8,
-  },
+    marginBottom: 8 },
   when: { fontFamily: font.sans, color: color.mist, marginTop: 8 },
   grid: { flexDirection: 'row', gap: 18, marginTop: 22 },
   cell: { flex: 1, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line, paddingTop: 12 },
-  cellK: { fontFamily: font.sansMed, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brassMute },
+  cellK: { fontFamily: font.sansMed, fontSize: 13, color: color.brassMute },
   cellV: { fontFamily: font.display, fontSize: 22, color: color.ivory, marginTop: 6 },
   pair: { fontFamily: font.sans, color: color.brass, marginTop: 16 },
   desc: { fontFamily: font.sansMed, fontSize: 17, color: color.ivory },
   meta: { fontFamily: font.sans, color: color.brassMute, marginTop: 6 },
   stamp: { fontFamily: font.sans, fontSize: 12, color: color.textMuted, marginTop: 10 },
-  pickL: { fontFamily: font.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: color.brassMute },
+  pickL: { fontFamily: font.sansMed, fontSize: 13, color: color.brassMute },
   pickV: {
     fontFamily: font.sans,
     fontSize: 17,

@@ -5,11 +5,10 @@ type SmsMonitorNative = {
   clearAuthToken(): Promise<void>;
   isNotificationListenerEnabled(): Promise<{ enabled: boolean; connected?: boolean }>;
   rebindNotificationListener(): Promise<void>;
-  openNotificationAccessSettings(): Promise<void>;
-  openAppDetailsSettings(): Promise<void>;
+  openNotificationAccessSettings(): Promise<boolean | void>;
+  openAppDetailsSettings(): Promise<boolean | void>;
   showTransactionReady(message: string): Promise<void>;
   saveToDownloads(sourcePath: string, filename: string, mimeType?: string | null): Promise<{ uri: string }>;
-  recognizeText(sourcePath: string): Promise<{ text: string }>;
   listOfflineQueue(): Promise<Array<{ url?: string; json?: string; fingerprint?: string }>>;
   flushOfflineQueue(): Promise<void>;
   scheduleDailyReminder(): Promise<void>;
@@ -60,17 +59,30 @@ export async function getNotificationListenerStatus(): Promise<{
 
 export async function rebindNotificationListener(): Promise<void> {
   if (!native?.rebindNotificationListener) return;
-  await native.rebindNotificationListener();
+  try {
+    await native.rebindNotificationListener();
+  } catch {
+    /* accès refusé ou restreint : rien à faire */
+  }
 }
 
-export async function openNotificationAccessSettings(): Promise<void> {
-  if (!native) return;
-  await native.openNotificationAccessSettings();
+/** true si un écran de réglages a pu s'ouvrir. Ne lève jamais. */
+export async function openNotificationAccessSettings(): Promise<boolean> {
+  if (!native?.openNotificationAccessSettings) return false;
+  try {
+    return (await native.openNotificationAccessSettings()) !== false;
+  } catch {
+    return false;
+  }
 }
 
-export async function openAppDetailsSettings(): Promise<void> {
-  if (!native?.openAppDetailsSettings) return;
-  await native.openAppDetailsSettings();
+export async function openAppDetailsSettings(): Promise<boolean> {
+  if (!native?.openAppDetailsSettings) return false;
+  try {
+    return (await native.openAppDetailsSettings()) !== false;
+  } catch {
+    return false;
+  }
 }
 
 export async function showTransactionReady(message: string): Promise<void> {
@@ -127,13 +139,6 @@ export async function saveToDownloads(
   if (!native?.saveToDownloads) return null;
   const result = await native.saveToDownloads(sourcePath, filename, mimeType ?? null);
   return result?.uri ?? null;
-}
-
-export async function recognizeText(sourcePath: string): Promise<string | null> {
-  if (!native?.recognizeText) return null;
-  const result = await native.recognizeText(sourcePath);
-  const text = result?.text?.trim() ?? '';
-  return text || null;
 }
 
 export async function listOfflineQueue(): Promise<

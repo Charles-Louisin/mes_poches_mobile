@@ -27,6 +27,13 @@ export function TransactionItem({
   const categoryName = savingsTitle ?? cat?.name ?? tx.description ?? typeLabel;
   const wallet = nameOf(tx.wallet_id as { name: string } | string, '—');
   const lines = tx.line_items?.length ?? 0;
+  // Lignes d'une même catégorie (ex. Alimentation : Pain, Riz) affichées sous la transaction.
+  const lineNames = lines > 1
+    ? (() => {
+        const names = [...new Set((tx.line_items ?? []).map((l) => l.description?.trim()).filter(Boolean))] as string[];
+        return names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', ');
+      })()
+    : '';
   const Icon = iconForCategory(categoryName, tx.type);
   const tone = savingsId ? 'warning' : toneForType(tx.type);
   const sign = savingsId
@@ -66,8 +73,12 @@ export function TransactionItem({
           </Text>
           <Text style={styles.sub} numberOfLines={1}>
             {formatRelativeDate(tx.date)} {'>'} {wallet}
-            {lines > 1 ? ` · ${lines} articles` : ''}
           </Text>
+          {lineNames ? (
+            <Text style={styles.lines} numberOfLines={1}>
+              {lineNames}
+            </Text>
+          ) : null}
         </View>
         <Text style={[styles.amount, { color: amountColor }]}>
           {sign}
@@ -97,6 +108,13 @@ const styles = StyleSheet.create({
     fontFamily: font.sans,
     fontSize: 12,
     color: color.textMuted,
+    marginTop: 2,
+  },
+  /** Lignes de la transaction (ex. Pain, Riz) sous le libellé. */
+  lines: {
+    fontFamily: font.sans,
+    fontSize: 12,
+    color: color.textSecondary,
     marginTop: 2,
   },
   amount: {

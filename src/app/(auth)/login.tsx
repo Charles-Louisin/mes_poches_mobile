@@ -95,6 +95,18 @@ export default function LoginScreen() {
   const showPassword = password.length > 0;
   const showConfirm = !isLogin && confirm.length > 0;
 
+  /** Double authentification active : on passe à l'écran du code e-mail. */
+  const goTwoFactor = (err: unknown): boolean => {
+    if (!(err instanceof ApiError) || err.code !== 'TWO_FACTOR_REQUIRED') return false;
+    const d = (err.data ?? {}) as { challenge?: string; emailHint?: string; cooldownSeconds?: number };
+    if (!d.challenge) return false;
+    router.push({
+      pathname: '/(auth)/two-factor' as never,
+      params: { challenge: d.challenge, hint: d.emailHint ?? '', cooldown: String(d.cooldownSeconds ?? 30) },
+    });
+    return true;
+  };
+
   const submit = async () => {
     if (loading || !canSubmit) return;
     setLoading(true);
@@ -114,6 +126,13 @@ export default function LoginScreen() {
         router.push('/(auth)/verify-email');
       }
     } catch (err) {
+      if (isLogin && goTwoFactor(err)) {
+        const avail = await biometricAvailability();
+        if (avail.available && avail.enrolled) {
+          await storeBiometricCredentials(email.trim().toLowerCase(), password);
+        }
+        return;
+      }
       if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
         const pending = (err.data as { email?: string } | undefined)?.email ?? email;
         await setPendingEmail(pending);
@@ -159,6 +178,7 @@ export default function LoginScreen() {
       track('login', { screen: 'login', props: { element: 'biometric' } });
       router.replace('/(tabs)');
     } catch (err) {
+      if (goTwoFactor(err)) return;
       toast(getErrorMessage(err, 'Connexion biométrique impossible'), 'err');
     } finally {
       setLoading(false);
@@ -168,10 +188,10 @@ export default function LoginScreen() {
   return (
     <Screen scroll>
       <View>
-        <BrandLockup size={48} caption="grand livre de poche" />
-        <Text style={styles.headline}>{isLogin ? 'Bon retour.' : 'Ouvrir un livre.'}</Text>
+        <BrandLockup size={48} caption="Cash, mobile money et banque" />
+        <Text style={styles.headline}>{isLogin ? 'Bon retour.' : 'Créer un compte.'}</Text>
         <Text style={styles.lede}>
-          {isLogin ? 'Reconnectez-vous pour retrouver vos poches.' : 'Un mois Premium offert après la vérification.'}
+          {isLogin ? 'Reconnectez-vous pour retrouver vos poches.' : 'Un mois Pro offert à votre première inscription.'}
         </Text>
 
         <View style={styles.toggle}>
@@ -311,7 +331,7 @@ const styles = StyleSheet.create({
   toggle: { flexDirection: 'row', gap: 18, marginTop: 28 },
   tog: { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: 'transparent' },
   togOn: { borderBottomColor: color.brass },
-  togTxt: { fontFamily: font.sansMed, color: color.brassMute, letterSpacing: 1.4, textTransform: 'uppercase', fontSize: 12 },
+  togTxt: { fontFamily: font.sansMed, color: color.brassMute, fontSize: 12 },
   togTxtOn: { color: color.brass },
   forgot: { marginTop: 16, fontFamily: font.sansMed, color: color.brass, fontSize: 13 },
   or: {

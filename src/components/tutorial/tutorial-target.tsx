@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { StyleProp, View, type ViewStyle } from 'react-native';
+import { StyleProp, View, type ViewInstance, type ViewStyle } from 'react-native';
 import { useTutorial } from '@/contexts/tutorial';
 
 export function TutorialTarget({
@@ -11,7 +11,7 @@ export function TutorialTarget({
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const { register, step } = useTutorial();
 
   const measure = useCallback(() => {

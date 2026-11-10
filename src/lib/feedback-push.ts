@@ -151,11 +151,11 @@ export async function pollFeedbackInbox(opts?: { silent?: boolean }): Promise<vo
         ping.preview ||
         (admin ? 'Un utilisateur vous a écrit.' : 'Vous avez un nouveau message.'),
       sound: 'default',
-      channelId: CHANNEL,
       data: admin
         ? { type: 'feedback', userId: ping.userId }
         : { type: 'feedback-reply', screen: 'feedback' },
     },
-    trigger: null,
+    // SDK 58 : le canal Android se passe dans le déclencheur (immédiat).
+    trigger: { channelId: CHANNEL },
   });
 }

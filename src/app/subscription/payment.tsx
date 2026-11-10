@@ -6,39 +6,56 @@ import { useToast } from '@/contexts/toast';
 import { subscriptionApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/errors';
 import { TIER_DEFS, priceFor, type BillingPeriod, type PaidTier } from '@/lib/planLimits';
-import { isSubscriptionPaymentEnabled } from '@/lib/subscription';
-import { color, type as font } from '@/theme/tokens';
+import { activePaidTier, isSubscriptionPaymentEnabled, isTierBelowActive } from '@/lib/subscription';
+import { useAuth } from '@/contexts/auth';
+import { color, radius, type as font } from '@/theme/tokens';
+import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
-const METHODS = [
-  { id: 'all' as const, label: 'Toutes' },
-  { id: 'orange' as const, label: 'Orange Money' },
-  { id: 'mtn' as const, label: 'MTN MoMo' },
-];
+/** Lien profond attendu en fin de paiement (page web de retour → mespoches://subscription/success). */
+const RETURN_PATH = 'subscription/success';
+
+function transactionIdFrom(url: string | undefined): string | null {
+  if (!url) return null;
+  const { queryParams } = Linking.parse(url);
+  const id = queryParams?.transactionId;
+  return typeof id === 'string' && id ? id : null;
+}
 
 export default function PaymentScreen() {
   const { period, tier: tierParam } = useLocalSearchParams<{ period?: string; tier?: string }>();
   const toast = useToast();
+  const { user } = useAuth();
   const tier: PaidTier = tierParam === 'pro_plus' || tierParam === 'business' ? tierParam : 'pro';
   const [billing, setBilling] = useState<BillingPeriod>(period === 'yearly' ? 'yearly' : 'monthly');
-  const [method, setMethod] = useState<(typeof METHODS)[number]['id']>('all');
   const [loading, setLoading] = useState(false);
   const amount = priceFor(tier, billing);
   const plan = TIER_DEFS[tier];
+  const active = activePaidTier(user);
+  const blocked = isTierBelowActive(tier, active);
 
   const pay = async () => {
+    if (blocked) return;
     if (!isSubscriptionPaymentEnabled()) {
       toast('Le règlement en ligne n’est pas encore ouvert.', 'info');
       return;
     }
     setLoading(true);
     try {
-      const { paymentUrl, transactionId } = await subscriptionApi.createCheckout(billing, method, tier);
-      await WebBrowser.openBrowserAsync(paymentUrl);
-      router.replace(`/subscription/success?transactionId=${encodeURIComponent(transactionId)}`);
+      if (Platform.OS === 'web') {
+        // Web : redirection pleine page ; SasPay ramène sur /subscription/success de cette origine.
+        const { paymentUrl } = await subscriptionApi.createCheckout(billing, 'all', tier, window.location.origin);
+        window.location.assign(paymentUrl);
+        return;
+      }
+      const { paymentUrl, transactionId } = await subscriptionApi.createCheckout(billing, 'all', tier);
+      const result = await WebBrowser.openAuthSessionAsync(paymentUrl, Linking.createURL(RETURN_PATH));
+      // Succès : la page de retour a rouvert l'app. Fermeture manuelle : on vérifie quand même côté serveur.
+      const ref = result.type === 'success' ? transactionIdFrom(result.url) ?? transactionId : transactionId;
+      router.replace(`/subscription/success?transactionId=${encodeURIComponent(ref)}`);
     } catch (err) {
       toast(getErrorMessage(err, 'Paiement impossible'), 'err');
     } finally {
@@ -61,20 +78,33 @@ export default function PaymentScreen() {
           </PressScale>
         ))}
       </View>
-      <Text style={styles.sec}>Canal</Text>
-      <View style={styles.row}>
-        {METHODS.map((m) => (
-          <PressScale key={m.id} onPress={() => setMethod(m.id)} style={[styles.chip, method === m.id && styles.chipOn]}>
-            <Text style={[styles.chipT, method === m.id && styles.chipTon]}>{m.label}</Text>
-          </PressScale>
-        ))}
+
+      <Text style={styles.sec}>Moyens acceptés</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Mobile money</Text>
+        <Text style={styles.cardBody}>
+          Orange Money, MTN MoMo, Wave, Moov, Airtel, M-Pesa… dans 21 pays d’Afrique. Vous choisissez votre pays et votre opérateur sur la page sécurisée.
+        </Text>
+        <View style={styles.divider} />
+        <Text style={styles.cardTitle}>Carte bancaire</Text>
+        <Text style={styles.cardBody}>Visa ou Mastercard, depuis n’importe quel pays.</Text>
       </View>
+      <Text style={styles.note}>
+        Les frais de l’opérateur s’ajoutent au prix et vous sont affichés avant validation. Paiement opéré par SasPay ; vous revenez automatiquement dans l’app.
+      </Text>
+
+      {blocked && active ? (
+        <Text style={styles.blocked}>
+          Votre forfait {TIER_DEFS[active].label} est actif. Vous pouvez le prolonger ou choisir un forfait supérieur.
+        </Text>
+      ) : null}
       <View style={{ height: 24 }} />
       <Button
         label={`Payer ${amount.toLocaleString('fr-FR')} FCFA`}
-        loadingLabel="Ouverture…"
+        loadingLabel="Ouverture du paiement…"
         onPress={() => void pay()}
         loading={loading}
+        disabled={blocked}
       />
     </Screen>
   );
@@ -89,14 +119,11 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   sec: {
-    fontFamily: font.sansMed,
-    fontSize: 11,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    color: color.textMuted,
-    marginTop: 8,
-    marginBottom: 12,
-  },
+    fontFamily: font.sansSemi,
+    fontSize: 15,
+    color: color.text,
+    marginTop: 24,
+    marginBottom: 12 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
@@ -109,4 +136,28 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: color.primary, borderColor: color.primary },
   chipT: { fontFamily: font.sansMed, color: color.text, fontSize: 13 },
   chipTon: { color: color.white },
+  card: {
+    backgroundColor: color.primaryVeryLight,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.primaryLight,
+    padding: 16,
+  },
+  cardTitle: { fontFamily: font.sansSemi, fontSize: 15, color: color.text, marginBottom: 4 },
+  cardBody: { fontFamily: font.sans, fontSize: 14, lineHeight: 20, color: color.textSecondary },
+  divider: { height: 1, backgroundColor: color.primaryLight, marginVertical: 12 },
+  blocked: {
+    fontFamily: font.sansMed,
+    fontSize: 14,
+    lineHeight: 20,
+    color: color.danger,
+    marginTop: 16,
+  },
+  note: {
+    fontFamily: font.sans,
+    fontSize: 12,
+    lineHeight: 18,
+    color: color.textMuted,
+    marginTop: 12,
+  },
 });
