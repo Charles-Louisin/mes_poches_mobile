@@ -12,7 +12,8 @@ import { color, radius, type as font } from '@/theme/tokens';
  */
 export function ApkUpdateModal({ update, onLater }: { update: ApkUpdate; onLater: () => void }) {
   const [step, setStep] = useState<'info' | 'guide'>('info');
-  const size = update.sizeMb ? ` (${update.sizeMb.toLocaleString('fr-FR')} Mo)` : '';
+  // Taille réelle de l'APK annoncé (release GitHub), arrondie ; ~37 Mo par défaut.
+  const sizeMb = update.sizeMb ? Math.round(update.sizeMb) : 37;
 
   const download = async () => {
     track('click', { screen: 'apk-update', props: { element: `download-${update.latestVersion}` } });
@@ -70,7 +71,7 @@ export function ApkUpdateModal({ update, onLater }: { update: ApkUpdate; onLater
                 </View>
               ))}
               <View style={styles.actions}>
-                <Button label={`Lancer le téléchargement${size}`} onPress={() => void download()} />
+                <Button label={`Télécharger (~${sizeMb} Mo)`} onPress={() => void download()} />
                 <Button label="Retour" variant="line" onPress={() => setStep('info')} />
               </View>
             </ScrollView>

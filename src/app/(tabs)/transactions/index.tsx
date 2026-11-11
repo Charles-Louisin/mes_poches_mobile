@@ -8,7 +8,12 @@ import { buildMonthOptions, filterTransactions, type TransactionFiltersState } f
 import { PLAN_LIMITS } from '@/lib/planLimits';
 import { getErrorMessage } from '@/lib/errors';
 import { invalidateFinance } from '@/lib/query';
-import { defaultOpenDayKey, groupTransactionsByDate } from '@/lib/utils';
+import { defaultOpenDayKey, groupTransactionsByDate, idOf } from '@/lib/utils';
+import { categoryOption, walletOption } from '@/lib/plan-options';
+import { GoldDiamond } from '@/components/ui/gold-diamond';
+import { promptLocked } from '@/components/subscription/plan-usage';
+import { showQuotaPrompt } from '@/components/subscription/quota-prompt';
+import type { Transaction } from '@/lib/api';
 import { useAuth } from '@/contexts/auth';
 import { useConfirm } from '@/contexts/confirm';
 import { useCurrency } from '@/contexts/currency';
@@ -56,6 +61,29 @@ export default function JournalScreen() {
   });
   const wallets = useQuery({ queryKey: ['wallets'], queryFn: () => walletApi.getAll() });
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => categoryApi.getAll() });
+  // Plan gratuit : les opérations plus anciennes existent toujours, on les annonce grisées.
+  const historyLock = useQuery({
+    queryKey: ['history-lock', isPremium],
+    queryFn: () => transactionApi.historyLock(),
+    enabled: !isPremium,
+  });
+  // Poches et catégories hors forfait : leurs opérations restent visibles, grisées avec le diamant.
+  const lockedWallets = useMemo(
+    () => new Set((wallets.data ?? []).filter((w) => w.locked).map((w) => w._id)),
+    [wallets.data]
+  );
+  const lockedCats = useMemo(
+    () => new Set((categories.data ?? []).filter((c) => c.locked).map((c) => c._id)),
+    [categories.data]
+  );
+  const lockOf = (t: Transaction): 'wallets' | 'categories' | null => {
+    const w = idOf(t.wallet_id);
+    const d = idOf(t.destination_wallet_id);
+    if ((w && lockedWallets.has(w)) || (d && lockedWallets.has(d))) return 'wallets';
+    const c = idOf(t.category_id);
+    return c && lockedCats.has(c) ? 'categories' : null;
+  };
+  const hiddenOld = historyLock.data?.limited ? historyLock.data.hiddenCount : 0;
 
   const filtered = useMemo(
     () => filterTransactions(txs.data ?? [], filters),
@@ -215,20 +243,50 @@ export default function JournalScreen() {
                 </View>
               </PressScale>
               {isOpen
-                ? g.items.map((t) => (
-                    <TransactionItem
-                      key={t._id}
-                      tx={t}
-                      formatAmount={formatAmount}
-                      exportRow
-                      onPress={() => router.push(`/transactions/${t._id}`)}
-                    />
-                  ))
+                ? g.items.map((t) => {
+                    const lock = lockOf(t);
+                    return (
+                      <TransactionItem
+                        key={t._id}
+                        tx={t}
+                        formatAmount={formatAmount}
+                        exportRow
+                        locked={!!lock}
+                        onPress={() =>
+                          lock ? promptLocked(lock, user?.quotas?.[lock]) : router.push(`/transactions/${t._id}`)
+                        }
+                      />
+                    );
+                  })
                 : null}
             </View>
           </Enter>
         );
       })}
+      {hiddenOld > 0 && !loading ? (
+        <PressScale
+          accessibilityRole="button"
+          accessibilityLabel={`${hiddenOld} opérations plus anciennes, disponibles avec le palier Pro`}
+          onPress={() =>
+            showQuotaPrompt({
+              message: `Le plan gratuit affiche les ${PLAN_LIMITS.FREE_HISTORY_MONTHS} derniers mois. Vos ${hiddenOld} opérations plus anciennes sont conservées : passez au palier Pro pour les revoir.`,
+              nextTier: "pro",
+              nextLabel: "Pro",
+              nextPriceXaf: user?.quotas?.wallets?.nextPriceXaf ?? null,
+            })
+          }
+          style={styles.oldCard}>
+          <GoldDiamond size={18} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.oldTitle}>
+              {hiddenOld} opération{hiddenOld > 1 ? "s" : ""} plus ancienne{hiddenOld > 1 ? "s" : ""}
+            </Text>
+            <Text style={styles.oldBody}>
+              Au-delà de {PLAN_LIMITS.FREE_HISTORY_MONTHS} mois. Rien n’est supprimé : passez au palier Pro pour les revoir.
+            </Text>
+          </View>
+        </PressScale>
+      ) : null}
       {loading ? (
         <PageSkeleton variant="list" rows={6} />
       ) : !hasData ? (
@@ -248,7 +306,7 @@ export default function JournalScreen() {
       <Sheet open={pick !== null} onClose={() => setPick(null)} title="Filtrer">
         {pick === 'wallet' ? (
           <OptionList
-            options={[{ value: '', label: 'Toutes les poches' }, ...(wallets.data ?? []).map((w) => ({ value: w._id, label: w.name }))]}
+            options={[{ value: '', label: 'Toutes les poches' }, ...(wallets.data ?? []).map(walletOption)]}
             value={filters.walletId}
             onChange={(v) => {
               setFilters((f) => ({ ...f, walletId: v }));
@@ -258,7 +316,7 @@ export default function JournalScreen() {
         ) : null}
         {pick === 'cat' ? (
           <OptionList
-            options={[{ value: '', label: 'Toutes les catégories' }, ...(categories.data ?? []).map((c) => ({ value: c._id, label: c.name }))]}
+            options={[{ value: '', label: 'Toutes les catégories' }, ...(categories.data ?? []).map(categoryOption)]}
             value={filters.categoryId}
             onChange={(v) => {
               setFilters((f) => ({ ...f, categoryId: v }));
@@ -312,6 +370,18 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   reset: { fontFamily: font.sansMed, fontSize: 13, color: color.primary },
   limit: { fontFamily: font.sans, fontSize: 12, color: color.textMuted, marginBottom: 16 },
+  oldCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+    padding: 16,
+    borderRadius: radius.card,
+    backgroundColor: color.surface,
+    opacity: 0.85,
+  },
+  oldTitle: { fontFamily: font.sansSemi, fontSize: 15, color: color.textMuted },
+  oldBody: { fontFamily: font.sans, fontSize: 13, lineHeight: 18, color: color.textMuted, marginTop: 2 },
   planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   section: { fontFamily: font.sansSemi, fontSize: 16, color: color.text },
   dayCard: {

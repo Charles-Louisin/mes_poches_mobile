@@ -42,7 +42,7 @@ function usesFileCapture(): boolean {
 }
 
 export function VoiceNoteProvider({ children }: { children: ReactNode }) {
-  const { user, requirePremium } = useAuth();
+  const { user, requirePremium, refreshMe } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -131,6 +131,8 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
         void notifyTransactionReady(label);
         toast(count > 1 ? `${count} propositions prêtes` : 'Transaction proposée', 'ok');
         await invalidateFinance();
+        // Compteur de notes vocales à jour (visible avant le prochain clic).
+        void refreshMe();
         close();
         router.push('/pending');
       } catch (e) {

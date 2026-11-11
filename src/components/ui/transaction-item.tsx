@@ -7,17 +7,21 @@ import { EntityAvatar } from './entity-avatar';
 import { IconCircle, iconToneColor } from './icon-circle';
 import { PressScale } from './press-scale';
 import { TxExportRow } from './tx-export-row';
+import { LockedTag } from '@/components/subscription/plan-usage';
 
 export function TransactionItem({
   tx,
   formatAmount,
   onPress,
   exportRow,
+  locked = false,
 }: {
   tx: Transaction;
   formatAmount: (n: number) => string;
   onPress?: () => void;
   exportRow?: boolean;
+  /** Poche ou catégorie hors forfait : opération grisée avec le diamant. */
+  locked?: boolean;
 }) {
   const cat = tx.category_id && typeof tx.category_id === 'object' ? (tx.category_id as Category) : null;
   const savingsId = savingsGoalIdOf(tx.savings_goal_id);
@@ -58,8 +62,8 @@ export function TransactionItem({
       <PressScale
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${typeLabel} ${categoryName}, ${sign}${formatAmount(tx.amount)}`}
-        style={styles.row}>
+        accessibilityLabel={`${typeLabel} ${categoryName}, ${sign}${formatAmount(tx.amount)}${locked ? ', hors de votre forfait' : ''}`}
+        style={[styles.row, locked && styles.locked]}>
         {cat?.image_url ? (
           <EntityAvatar imageUrl={cat.image_url} name={cat.name} type="category" size={44} />
         ) : (
@@ -79,13 +83,18 @@ export function TransactionItem({
               {lineNames}
             </Text>
           ) : null}
+          {locked ? (
+            <View style={styles.lockedTag}>
+              <LockedTag />
+            </View>
+          ) : null}
         </View>
-        <Text style={[styles.amount, { color: amountColor }]}>
+        <Text style={[styles.amount, { color: locked ? color.textMuted : amountColor }]}>
           {sign}
           {formatAmount(tx.amount)}
         </Text>
       </PressScale>
-      {exportRow ? <TxExportRow transactionId={tx._id} /> : null}
+      {exportRow && !locked ? <TxExportRow transactionId={tx._id} /> : null}
     </View>
   );
 }
@@ -99,6 +108,8 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   meta: { flex: 1, minWidth: 0 },
+  locked: { opacity: 0.6 },
+  lockedTag: { flexDirection: 'row', marginTop: 4 },
   title: {
     fontFamily: font.sansMed,
     fontSize: 16,

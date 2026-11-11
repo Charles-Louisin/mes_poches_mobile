@@ -10,7 +10,7 @@
         "EXPO_PUBLIC_API_URL": "https://mespochesbackend-production-9835.up.railway.app/api",
         "EXPO_PUBLIC_WEB_URL": "https://www.mespoches.store",
         "EXPO_PUBLIC_PRIVACY_URL": "https://www.mespoches.store/legal/privacy",
-        "EXPO_PUBLIC_PAYMENTS_ENABLED": "false"
+        "EXPO_PUBLIC_PAYMENTS_ENABLED": "true"
       }
     },
     "development": {

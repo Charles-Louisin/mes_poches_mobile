@@ -1,3 +1,4 @@
+import { PlanUsage } from '@/components/subscription/plan-usage';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -37,28 +38,13 @@ import { PageSkeleton } from '@/components/ui/page-skeleton';
 import { PocketArt, ReceiptArt } from '@/components/illustrations';
 import { color, radius, space, type as font, typeScale } from '@/theme/tokens';
 
+/** Scans et notes vocales du mois, toujours visibles sur l'accueil (avant de toucher Scanner ou +). */
 function QuotaHints({ quotas }: { quotas?: MeUser['quotas'] }) {
-  const items = Object.values(quotas ?? {}).filter(
-    (q) => q.limit != null && q.limit > 0 && q.used / q.limit >= 0.8 && (q.remaining ?? 0) > 0
-  );
-  if (!items.length) return null;
+  if (!quotas?.scans && !quotas?.voice) return null;
   return (
     <View style={styles.quotaBox}>
-      {items.map((q) => {
-        const ratio = Math.min(1, q.used / (q.limit || 1));
-        const when = q.period === 'month' ? ' ce mois-ci' : '';
-        return (
-          <View key={q.key} style={styles.quotaItem}>
-            <View style={styles.quotaTrack}>
-              <View style={[styles.quotaFill, { width: `${Math.round(ratio * 100)}%` }]} />
-            </View>
-            <Text style={styles.quotaT}>
-              Il vous reste {q.remaining} {q.label}
-              {when}
-            </Text>
-          </View>
-        );
-      })}
+      <PlanUsage kind="scans" />
+      <PlanUsage kind="voice" />
     </View>
   );
 }
@@ -343,10 +329,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   quotaBox: { gap: 8, marginBottom: 14 },
-  quotaItem: { gap: 4 },
-  quotaTrack: { height: 4, borderRadius: 4, backgroundColor: color.line, overflow: 'hidden' },
-  quotaFill: { height: 4, backgroundColor: color.primary },
-  quotaT: { fontFamily: font.sans, fontSize: 13, color: color.textSecondary },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 },
   hello: { ...typeScale.h2, color: color.text, marginTop: 1 },

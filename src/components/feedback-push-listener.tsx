@@ -3,7 +3,12 @@ import { AppState, Linking, Platform } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useAuth } from '@/contexts/auth';
 import { pollFeedbackInbox, registerFeedbackPushToken } from '@/lib/feedback-push';
-import { hrefFromNotification, openFromNotification } from '@/lib/notification-open';
+import {
+  flushDeferredNotification,
+  hrefFromNotification,
+  openFromNotification,
+  resetNotificationSession,
+} from '@/lib/notification-open';
 
 function isInboxScreen(path: string): boolean {
   return path === '/feedback' || /\/admin-messages\/[a-f0-9]{24}/i.test(path);
@@ -17,6 +22,12 @@ export function FeedbackPushListener() {
     if (!ready || !token) return;
     void registerFeedbackPushToken({ request: true });
   }, [ready, token, user?.id]);
+
+  // Une notification touchée avant la fin du chargement de la session est ouverte une fois connecté.
+  useEffect(() => {
+    if (ready && token) flushDeferredNotification();
+    else resetNotificationSession();
+  }, [ready, token]);
 
   useEffect(() => {
     if (!ready || !token || Platform.OS === 'web') return;
@@ -80,6 +91,7 @@ export function FeedbackPushListener() {
         type?: string;
         userId?: string;
         screen?: string;
+        pendingId?: string;
       };
       if (hrefFromNotification(data)) {
         openFromNotification(data);
@@ -87,7 +99,10 @@ export function FeedbackPushListener() {
     };
 
     void Notifications.getLastNotificationResponseAsync?.().then((response) => {
-      if (response) go(response);
+      if (!response) return;
+      go(response);
+      // Sinon la même notification rouvrirait la page à chaque lancement.
+      void Notifications.clearLastNotificationResponseAsync?.();
     });
 
     const sub = Notifications.addNotificationResponseReceivedListener(go);

@@ -1,3 +1,4 @@
+import { walletOption, categoryOption } from '@/lib/plan-options';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { categoryApi, plannedExpenseApi, walletApi, type PlannedExpense } from '@/lib/api';
@@ -108,7 +109,7 @@ export function EditPlannedSheet({
       <Sheet open={pick !== null} onClose={() => setPick(null)} title="Choisir">
         {pick === 'wallet' ? (
           <OptionList
-            options={wallets.map((w) => ({ value: w._id, label: w.name }))}
+            options={wallets.map(walletOption)}
             value={walletId}
             onChange={(v) => {
               setWalletId(v);
@@ -117,7 +118,7 @@ export function EditPlannedSheet({
           />
         ) : (
           <OptionList
-            options={[{ value: '', label: 'Sans catégorie' }, ...categories.map((c) => ({ value: c._id, label: c.name }))]}
+            options={[{ value: '', label: 'Sans catégorie' }, ...categories.map(categoryOption)]}
             value={categoryId}
             onChange={(v) => {
               setCategoryId(v);

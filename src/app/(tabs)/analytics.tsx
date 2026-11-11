@@ -14,7 +14,9 @@ import {
   Target,
   Wallet,
 } from 'lucide-react-native';
-import { analyticsApi, type MonthBriefing, type MonthOverview } from '@/lib/api';
+import { analyticsApi, categoryApi, type MonthBriefing, type MonthOverview } from '@/lib/api';
+import { LockedTag, promptLocked } from '@/components/subscription/plan-usage';
+import { GoldDiamond } from '@/components/ui/gold-diamond';
 import { isAbortError } from '@/lib/errors';
 import { compareMonths, fmtPct, listMonths, localDateKey, monthLabel, shiftMonth } from '@/lib/months';
 import { STORAGE_KEYS, getJson, setJson } from '@/lib/storage';
@@ -24,7 +26,6 @@ import { useCurrency } from '@/contexts/currency';
 import { Amount } from '@/components/ui/amount';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
 import { PageSkeleton } from '@/components/ui/page-skeleton';
 import { InkBar } from '@/components/ui/ink-bar';
 import { OptionList } from '@/components/ui/option-list';
@@ -33,7 +34,6 @@ import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Sheet } from '@/components/ui/sheet';
 import { MonthTrigger } from '@/components/analytics/month-trigger';
-import { ChartArt } from '@/components/illustrations';
 import { color, radius, type as font, typeScale } from '@/theme/tokens';
 
 type StoredBriefing = {
@@ -51,6 +51,14 @@ function briefingStorageKey(userId: string) {
 export default function AnalyticsScreen() {
   const { isPremium, user } = useAuth();
   const { formatAmount } = useCurrency();
+  // Catégories hors forfait (après un passage à un palier inférieur) : grisées dans les répartitions.
+  const catsQ = useQuery({ queryKey: ['categories'], queryFn: () => categoryApi.getAll(), enabled: isPremium });
+  const lockedCats = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of catsQ.data ?? []) if (c.locked) set.add(`${c.type}:${c.name}`);
+    return set;
+  }, [catsQ.data]);
+  const catQuota = user?.quotas?.categories;
   const now = new Date();
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [vs, setVs] = useState(() => shiftMonth(now.getFullYear(), now.getMonth() + 1, -1));
@@ -312,13 +320,7 @@ export default function AnalyticsScreen() {
       )}
 
       {!isPremium ? (
-        <EmptyState
-          illustration={<ChartArt size={180} />}
-          title="Analyse Premium"
-          description="Comparaison des mois, budgets, épargne et briefing IA."
-          cta="Voir Premium"
-          onPress={() => router.push('/subscription')}
-        />
+        <LockedAnalyses />
       ) : o ? (
         <>
           <View style={{ marginTop: 12, marginBottom: 8 }}>
@@ -492,17 +494,23 @@ export default function AnalyticsScreen() {
           <Card style={styles.block}>
             {(o.expenses.length ? o.expenses : []).map((c) => {
               const share = o.selected.totalExpense > 0 ? (c.total / o.selected.totalExpense) * 100 : 0;
+              const locked = lockedCats.has(`expense:${c.category}`);
               return (
-                <View key={c.category} style={styles.catRow}>
+                <PressScale
+                  key={c.category}
+                  disabled={!locked}
+                  onPress={() => promptLocked('categories', catQuota)}
+                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : undefined}
+                  style={[styles.catRow, locked && styles.catLocked]}>
                   <View style={styles.budgetRow}>
-                    <Text style={styles.cat}>{c.category}</Text>
-                    <Text style={styles.amt}>{formatAmount(c.total)}</Text>
+                    <Text style={[styles.cat, locked && styles.catMuted]}>{c.category}</Text>
+                    {locked ? <LockedTag /> : <Text style={styles.amt}>{formatAmount(c.total)}</Text>}
                   </View>
                   <InkBar value={share} tone="danger" />
                   <Text style={styles.share}>
                     {Math.round(share)} % · {operationsLabel(c.count)}
                   </Text>
-                </View>
+                </PressScale>
               );
             })}
             {o.expenses.length === 0 ? <Text style={styles.empty}>Aucune sortie classée</Text> : null}
@@ -512,17 +520,23 @@ export default function AnalyticsScreen() {
           <Card style={styles.block}>
             {o.incomes.map((c) => {
               const share = o.selected.totalIncome > 0 ? (c.total / o.selected.totalIncome) * 100 : 0;
+              const locked = lockedCats.has(`income:${c.category}`);
               return (
-                <View key={c.category} style={styles.catRow}>
+                <PressScale
+                  key={c.category}
+                  disabled={!locked}
+                  onPress={() => promptLocked('categories', catQuota)}
+                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : undefined}
+                  style={[styles.catRow, locked && styles.catLocked]}>
                   <View style={styles.budgetRow}>
-                    <Text style={styles.cat}>{c.category}</Text>
-                    <Text style={styles.amt}>{formatAmount(c.total)}</Text>
+                    <Text style={[styles.cat, locked && styles.catMuted]}>{c.category}</Text>
+                    {locked ? <LockedTag /> : <Text style={styles.amt}>{formatAmount(c.total)}</Text>}
                   </View>
                   <InkBar value={share} tone="success" />
                   <Text style={styles.share}>
                     {Math.round(share)} % · {operationsLabel(c.count)}
                   </Text>
-                </View>
+                </PressScale>
               );
             })}
             {o.incomes.length === 0 ? <Text style={styles.empty}>Aucune entrée classée</Text> : null}
@@ -807,6 +821,21 @@ const styles = StyleSheet.create({
   meta: { fontFamily: font.sans, fontSize: 13, color: color.textMuted, marginTop: 8, marginBottom: 8 },
   metaK: { fontFamily: font.sans, fontSize: 12, color: color.textMuted },
   catRow: { marginBottom: 14 },
+  catLocked: { opacity: 0.55 },
+  catMuted: { color: color.textMuted },
+  lockedCard: { marginTop: 16, gap: 0 },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: color.border,
+  },
+  lockedRowLast: { borderBottomWidth: 0 },
+  lockedTitle: { fontFamily: font.sansSemi, fontSize: 15, color: color.textMuted },
+  lockedDesc: { fontFamily: font.sans, fontSize: 13, lineHeight: 18, color: color.textMuted, marginTop: 2 },
+  lockedIntro: { fontFamily: font.sans, fontSize: 14, lineHeight: 20, color: color.textSecondary, marginTop: 24 },
   budgetRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
   cat: { fontFamily: font.sansMed, color: color.text, fontSize: 14, flex: 1 },
   amt: { fontFamily: font.sansSemi, fontSize: 14, color: color.text },
@@ -912,3 +941,44 @@ const styles = StyleSheet.create({
   tip: { fontFamily: font.sans, color: color.text, fontSize: 13, marginTop: 6, lineHeight: 18 },
   tipMuted: { fontFamily: font.sans, color: color.textSecondary, fontSize: 13, marginTop: 6, lineHeight: 18 },
 });
+
+/** Plan gratuit : les analyses du forfait Pro restent visibles, grisées avec le diamant. */
+const PRO_ANALYSES = [
+  ['Comparaison des mois', 'Ce mois face à n’importe quel mois précédent.'],
+  ['Sorties et entrées par catégorie', 'Où part l’argent, en pourcentage du mois.'],
+  ['Budgets du mois', 'Un plafond par catégorie, l’alerte avant le dépassement.'],
+  ['Épargne et objectifs', 'La progression de chaque objectif.'],
+  ['Briefing IA', 'Le résumé du mois et les conseils, en un geste.'],
+] as const;
+
+function LockedAnalyses() {
+  const { user } = useAuth();
+  const next = user?.quotas?.scans;
+  const open = () =>
+    next?.nextTier
+      ? router.push(`/subscription/payment?tier=${next.nextTier}`)
+      : router.push('/subscription');
+  return (
+    <>
+      <Text style={styles.lockedIntro}>Ces analyses ne sont pas incluses dans le plan gratuit.</Text>
+      <Card style={styles.lockedCard}>
+        {PRO_ANALYSES.map(([title, desc], i) => (
+          <PressScale
+            key={title}
+            onPress={open}
+            accessibilityRole="button"
+            accessibilityLabel={`${title}, disponible avec le palier Pro`}
+            style={[styles.lockedRow, i === PRO_ANALYSES.length - 1 && styles.lockedRowLast]}>
+            <GoldDiamond size={18} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lockedTitle}>{title}</Text>
+              <Text style={styles.lockedDesc}>{desc}</Text>
+            </View>
+          </PressScale>
+        ))}
+      </Card>
+      <View style={{ height: 16 }} />
+      <Button label="Débloquer avec Pro" onPress={open} />
+    </>
+  );
+}

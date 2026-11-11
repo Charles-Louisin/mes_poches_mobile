@@ -3,6 +3,7 @@ import { color, radius, shadow, space, type as font } from '@/theme/tokens';
 import { Enter } from './enter';
 import { EntityAvatar } from './entity-avatar';
 import { PressScale } from './press-scale';
+import { LockedTag } from '@/components/subscription/plan-usage';
 
 export function Passbook({
   name,
@@ -14,6 +15,7 @@ export function Passbook({
   imageUrl,
   onPress,
   index = 0,
+  locked = false,
 }: {
   name: string;
   amount: string;
@@ -24,6 +26,8 @@ export function Passbook({
   imageUrl?: string | null;
   onPress?: () => void;
   index?: number;
+  /** Hors forfait : grisée avec le diamant. */
+  locked?: boolean;
 }) {
   const showMonth = formatAmount && (monthIncome !== undefined || monthExpense !== undefined);
   const income = formatAmount?.(monthIncome ?? 0) ?? '';
@@ -31,12 +35,19 @@ export function Passbook({
 
   return (
     <Enter delay={40 + index * 60}>
-      <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={name} style={styles.wrap}>
+      <PressScale
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={locked ? `${name}, hors de votre forfait` : name}
+        style={[styles.wrap, locked && styles.locked]}>
         <EntityAvatar imageUrl={imageUrl} name={name} type="wallet" size={48} />
         <View style={styles.body}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, locked && styles.mutedText]} numberOfLines={1}>
+              {name}
+            </Text>
+            {locked ? <LockedTag /> : null}
+          </View>
           {showMonth ? (
             <View style={styles.month}>
               <Text style={styles.in}>{hidden ? '+•••' : `+${income}`}</Text>
@@ -65,6 +76,9 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { boxShadow: '0 4px 16px rgba(17,17,17,0.05)' } : shadow.soft),
   },
   body: { flex: 1, minWidth: 0 },
+  locked: { opacity: 0.62 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mutedText: { color: color.textMuted, flexShrink: 1 },
   name: {
     fontFamily: font.sansSemi,
     fontSize: 16,

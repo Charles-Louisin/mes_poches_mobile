@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { walletOption, categoryOption } from '@/lib/plan-options';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { pendingTransactionApi, walletApi, categoryApi, sanitizeLineItems, type PendingTransaction } from '@/lib/api';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { defaultOpenDayKey, formatDateTime, groupTransactionsByDate, idOf, nameOf } from '@/lib/utils';
 import { invalidateFinance } from '@/lib/query';
 import { getErrorMessage } from '@/lib/errors';
@@ -150,6 +152,24 @@ export default function PendingScreen() {
         }))
       ),
     [q.data?.items]
+  );
+
+  // Ouverture depuis une notification : on déplie le jour de la proposition concernée.
+  const { id: focusId } = useLocalSearchParams<{ id?: string }>();
+  useEffect(() => {
+    if (!focusId) return;
+    const g = groups.find((x) => x.items.some((i) => i._id === focusId));
+    if (!g) return;
+    setOpenDays((prev) => new Set(prev).add(g.dayKey));
+    setOpenReady(true);
+  }, [focusId, groups]);
+
+  // Toujours à jour en arrivant sur la page (propositions créées en arrière-plan).
+  useFocusEffect(
+    useCallback(() => {
+      void q.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
   );
 
   useEffect(() => {
@@ -516,14 +536,14 @@ export default function PendingScreen() {
       <Sheet open={pick !== null} onClose={() => setPick(null)} title={pick?.kind === 'wallet' ? 'Poche' : 'Catégorie'}>
         {pick?.kind === 'wallet' ? (
           <OptionList
-            options={(q.data?.wallets ?? []).map((w) => ({ value: w._id, label: w.name }))}
+            options={(q.data?.wallets ?? []).map(walletOption)}
             onChange={(v) => void assign(v)}
           />
         ) : (
           <OptionList
             options={[
               { value: '', label: 'Sans catégorie' },
-              ...categoriesForPick.map((c) => ({ value: c._id, label: c.name })),
+              ...categoriesForPick.map(categoryOption),
             ]}
             onChange={(v) => void assign(v)}
           />

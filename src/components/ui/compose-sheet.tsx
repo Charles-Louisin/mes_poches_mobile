@@ -8,6 +8,7 @@ import { GoldDiamond } from './gold-diamond';
 import { IconCircle, iconToneColor } from './icon-circle';
 import { PressScale } from './press-scale';
 import { track } from '@/lib/telemetry';
+import { isQuotaFull, usageText } from '@/components/subscription/plan-usage';
 import { Sheet } from './sheet';
 
 export function ComposeSheet({
@@ -26,9 +27,12 @@ export function ComposeSheet({
   imageDisabled?: boolean;
 }) {
   const { user } = useAuth();
-  const quotaFull = (key: 'scans' | 'voice') => {
+  const quotaFull = (key: 'scans' | 'voice') => isQuotaFull(user?.quotas?.[key]);
+  // Usage du forfait lisible avant de toucher : « 2/3 ce mois », ou « Limite atteinte ».
+  const usageHint = (key: 'scans' | 'voice', base: string) => {
     const q = user?.quotas?.[key];
-    return !!q && q.limit != null && q.used >= q.limit;
+    if (!q) return base;
+    return quotaFull(key) ? `Limite atteinte · ${usageText(q)}` : `${base} · ${usageText(q)}`;
   };
   const cells = [
     { key: 'text', Icon: Type, title: 'Saisie', hint: 'Montant à la main', tone: 'primary' as const, onPress: onText, disabled: false, pro: false },
@@ -36,13 +40,22 @@ export function ComposeSheet({
       key: 'image',
       Icon: ImageIcon,
       title: 'Scan',
-      hint: imageDisabled ? 'Analyse en cours…' : 'Ticket',
+      hint: imageDisabled ? 'Analyse en cours…' : usageHint('scans', 'Ticket'),
       tone: 'warning' as const,
       onPress: onImage,
       disabled: !!imageDisabled,
       pro: quotaFull('scans'),
     },
-    { key: 'audio', Icon: Mic, title: 'Voix', hint: 'Note vocale', tone: 'success' as const, onPress: onAudio, disabled: false, pro: quotaFull('voice') },
+    {
+      key: 'audio',
+      Icon: Mic,
+      title: 'Voix',
+      hint: usageHint('voice', 'Note vocale'),
+      tone: 'success' as const,
+      onPress: onAudio,
+      disabled: false,
+      pro: quotaFull('voice'),
+    },
   ];
 
   return (

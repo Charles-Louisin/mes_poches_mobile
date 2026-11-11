@@ -1,3 +1,4 @@
+import { walletOption, categoryOption } from '@/lib/plan-options';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -96,7 +97,8 @@ export default function NewTransactionScreen() {
         const w = await walletApi.getAll();
         const list = Array.isArray(w) ? w : [];
         setWallets(list);
-        if (list[0] && !walletId) setWalletId(list[0]._id);
+        const firstOpen = list.find((w) => !w.locked);
+        if (firstOpen && !walletId) setWalletId(firstOpen._id);
         if (kind !== 'transfer') {
           const c = await categoryApi.getAll(kind);
           setCategories(Array.isArray(c) ? c : []);
@@ -453,14 +455,14 @@ export default function NewTransactionScreen() {
 
       <Sheet open={pick !== null} onClose={() => setPick(null)} title="Choisir">
         {pick === 'wallet' ? (
-          <OptionList options={wallets.map((w) => ({ value: w._id, label: w.name }))} value={walletId} onChange={(v) => { setWalletId(v); setPick(null); }} />
+          <OptionList options={wallets.map(walletOption)} value={walletId} onChange={(v) => { setWalletId(v); setPick(null); }} />
         ) : null}
         {pick === 'dest' ? (
-          <OptionList options={wallets.filter((w) => w._id !== walletId).map((w) => ({ value: w._id, label: w.name }))} value={destId} onChange={(v) => { setDestId(v); setPick(null); }} />
+          <OptionList options={wallets.filter((w) => w._id !== walletId).map(walletOption)} value={destId} onChange={(v) => { setDestId(v); setPick(null); }} />
         ) : null}
         {pick === 'cat' ? (
           <OptionList
-            options={[{ value: '', label: 'Sans catégorie' }, ...categories.map((c) => ({ value: c._id, label: c.name }))]}
+            options={[{ value: '', label: 'Sans catégorie' }, ...categories.map(categoryOption)]}
             value={categoryId}
             onChange={(v) => { setCategoryId(v); setPick(null); }}
           />
@@ -473,7 +475,7 @@ export default function NewTransactionScreen() {
         <OptionList
           options={[
             { value: '', label: `Comme la transaction (${catName})` },
-            ...categories.map((c) => ({ value: c._id, label: c.name })),
+            ...categories.map(categoryOption),
           ]}
           value={lines.find((l) => l.id === lineCatFor)?.categoryId ?? ''}
           onChange={(v) => {

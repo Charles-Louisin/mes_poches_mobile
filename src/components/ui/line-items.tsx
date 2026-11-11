@@ -1,3 +1,4 @@
+import { categoryOption } from '@/lib/plan-options';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react-native';
@@ -139,7 +140,7 @@ export function LineItems({
           <OptionList
             options={[
               { value: '', label: parentCategoryName ? `Comme la transaction (${parentCategoryName})` : 'Comme la transaction' },
-              ...categories.map((c) => ({ value: c._id, label: c.name })),
+              ...categories.map(categoryOption),
             ]}
             value={catFor !== null ? lineCategoryId(list[catFor] ?? {}) : ''}
             onChange={(v) => {

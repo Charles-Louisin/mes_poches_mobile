@@ -13,7 +13,7 @@ import { useTutorial } from '@/contexts/tutorial';
 import { categoryApi, type Category } from '@/lib/api';
 import { getErrorMessage, isPremiumRequiredError } from '@/lib/errors';
 import { quotaPromptFromError } from '@/components/subscription/quota-prompt';
-import { TIER_DEFS } from '@/lib/planLimits';
+import { LockedTag, PlanUsage, lockedMessage, promptLocked } from '@/components/subscription/plan-usage';
 import { invalidateFinance } from '@/lib/query';
 import { color, type as font } from '@/theme/tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -23,7 +23,7 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 export default function CategoriesScreen() {
-  const { isPremium } = useAuth();
+  const { user } = useAuth();
   const { step, afterCategoryCreated } = useTutorial();
   const toast = useToast();
   const confirm = useConfirm();
@@ -101,10 +101,21 @@ export default function CategoriesScreen() {
   const expenses = list.filter((c) => c.type === 'expense');
   const incomes = list.filter((c) => c.type === 'income');
 
+  const quota = user?.quotas?.categories;
+  const lockedCount = list.filter((c) => c.locked).length;
+
   const renderRow = (c: Category) => (
-    <View key={c._id} style={styles.row}>
-      <EntityAvatar imageUrl={c.image_url} name={c.name} type="category" size={44} />
-      <Text style={styles.name}>{c.name}</Text>
+    <View key={c._id} style={[styles.row, c.locked && styles.rowLocked]}>
+      <PressScale
+        onPress={() => (c.locked ? promptLocked('categories', quota) : startEdit(c))}
+        accessibilityLabel={c.locked ? `${c.name}, hors de votre forfait` : c.name}
+        style={styles.main}>
+        <EntityAvatar imageUrl={c.image_url} name={c.name} type="category" size={44} />
+        <Text style={[styles.name, c.locked && styles.nameLocked]} numberOfLines={1}>
+          {c.name}
+        </Text>
+        {c.locked ? <LockedTag /> : null}
+      </PressScale>
       <PressScale onPress={() => startEdit(c)} accessibilityLabel={`Modifier ${c.name}`} style={styles.iconBtn}>
         <Pencil color={color.textMuted} size={18} strokeWidth={2} />
       </PressScale>
@@ -117,9 +128,8 @@ export default function CategoriesScreen() {
   return (
     <Screen scroll scrollRef={scrollRef} onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
       <ScreenHeader title="Catégories" />
-      {!isPremium ? (
-        <Text style={styles.limit}>Plan gratuit : {TIER_DEFS.free.categories} catégories au total.</Text>
-      ) : null}
+      <PlanUsage kind="categories" style={styles.usage} />
+      {lockedCount ? <Text style={styles.limit}>{lockedMessage('categories', quota)}</Text> : null}
       <ImageUpload
         value={imageUrl}
         onChange={setImageUrl}
@@ -170,6 +180,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: color.line,
   },
-  name: { fontFamily: font.sans, color: color.ivory, fontSize: 16, flex: 1 },
+  name: { fontFamily: font.sans, color: color.ivory, fontSize: 16, flexShrink: 1 },
+  nameLocked: { color: color.textMuted },
+  main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
+  rowLocked: { opacity: 0.62 },
+  usage: { marginBottom: 12 },
   iconBtn: { padding: 6 },
 });

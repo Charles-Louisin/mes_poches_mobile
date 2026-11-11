@@ -1,5 +1,6 @@
 import { AppUpdatePrompt } from '@/components/app-update-prompt';
 import { FeedbackPushListener } from '@/components/feedback-push-listener';
+import { PendingSync } from '@/components/pending-sync';
 import { PendingDuplicateListener } from '@/components/pending-duplicate-listener';
 import { PhoneFrame } from '@/components/phone-frame';
 import { SessionGuard } from '@/components/session-guard';
@@ -62,6 +63,7 @@ export default function RootLayout() {
                     <OfflineScreen />
                     <TelemetryListener />
                     <FeedbackPushListener />
+                    <PendingSync />
                     <PendingDuplicateListener />
                     <AppUpdatePrompt />
                     <Stack

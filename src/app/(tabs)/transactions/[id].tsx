@@ -1,3 +1,4 @@
+import { walletOption, categoryOption } from '@/lib/plan-options';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -252,7 +253,7 @@ export default function TransactionDetailScreen() {
       <Sheet open={pick !== null} onClose={() => setPick(null)} title="Choisir">
         {pick === 'wallet' ? (
           <OptionList
-            options={(q.data?.wallets ?? []).map((w) => ({ value: w._id, label: w.name }))}
+            options={(q.data?.wallets ?? []).map(walletOption)}
             value={walletId}
             onChange={(v) => {
               setWalletId(v);
@@ -263,7 +264,7 @@ export default function TransactionDetailScreen() {
           <OptionList
             options={[
               { value: '', label: 'Sans catégorie' },
-              ...(q.data?.categories ?? []).map((c) => ({ value: c._id, label: c.name })),
+              ...(q.data?.categories ?? []).map(categoryOption),
             ]}
             value={categoryId}
             onChange={(v) => {

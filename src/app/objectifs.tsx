@@ -1,3 +1,4 @@
+import { categoryOption } from '@/lib/plan-options';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -305,7 +306,7 @@ export default function ObjectifsScreen() {
       </Sheet>
       <Sheet open={pickCat} onClose={() => setPickCat(false)} title="Rayon">
         <OptionList
-          options={(q.data?.categories ?? []).map((c) => ({ value: c._id, label: c.name }))}
+          options={(q.data?.categories ?? []).map(categoryOption)}
           value={categoryId}
           onChange={(v) => {
             setCategoryId(v);

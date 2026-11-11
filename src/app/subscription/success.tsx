@@ -69,23 +69,21 @@ export default function PaymentSuccessScreen() {
     phase === 'wait' ? 'Vérification du paiement…' : phase === 'ok' ? 'Paiement reçu.' : phase === 'pending' ? 'En attente de confirmation' : phase === 'failed' ? 'Paiement non abouti' : 'Vérification impossible';
 
   return (
-    <Screen>
+    // Bord bas protégé : les boutons restent au-dessus de la barre de navigation Android.
+    <Screen edges={['top', 'bottom']}>
       <ScreenHeader title="Paiement" back />
       {phase === 'wait' ? <ActivityIndicator color={color.primary} style={styles.spinner} /> : null}
       <Text style={[styles.title, phase === 'ok' && { color: color.success }]}>{title}</Text>
       <Text style={styles.body}>{detail}</Text>
-      <View style={{ flex: 1 }} />
-      {phase === 'pending' || phase === 'error' ? (
-        <View style={styles.secondary}>
+      <View style={styles.actions}>
+        {phase === 'pending' || phase === 'error' ? (
           <Button label="Vérifier à nouveau" variant="secondary" onPress={() => void check()} />
-        </View>
-      ) : null}
-      {phase === 'failed' ? (
-        <View style={styles.secondary}>
+        ) : null}
+        {phase === 'failed' ? (
           <Button label="Réessayer le paiement" variant="secondary" onPress={() => router.replace('/subscription')} />
-        </View>
-      ) : null}
-      <Button label="Retour à l’accueil" onPress={() => router.replace('/(tabs)')} />
+        ) : null}
+        <Button label="Retour à l’accueil" onPress={() => router.replace('/(tabs)')} />
+      </View>
     </Screen>
   );
 }
@@ -94,5 +92,6 @@ const styles = StyleSheet.create({
   spinner: { alignSelf: 'flex-start', marginBottom: 16 },
   title: { fontFamily: font.display, fontSize: 30, lineHeight: 36, color: color.text, marginBottom: 12 },
   body: { fontFamily: font.sans, fontSize: 16, color: color.textSecondary, lineHeight: 24 },
-  secondary: { marginBottom: 12 },
+  // Juste sous le message, à portée de pouce, jamais collés au bas de l'écran.
+  actions: { marginTop: 32, gap: 12, paddingBottom: 16 },
 });

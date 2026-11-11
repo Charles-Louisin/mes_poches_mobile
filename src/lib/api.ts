@@ -52,6 +52,9 @@ export const transactionApi = {
     return fetchApi<Transaction[]>(`/transactions${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => fetchApi<Transaction>(`/transactions/${id}`),
+  /** Plan gratuit : nombre d’opérations plus anciennes que l’historique inclus (rien n’est supprimé). */
+  historyLock: () =>
+    fetchApi<{ limited: boolean; cutoff: string | null; hiddenCount: number }>('/transactions/history-lock'),
   getTransferPair: (id: string) =>
     fetchApi<{ debit: Transaction | null; credit: Transaction | null }>(
       `/transactions/${id}/transfer-pair`
@@ -606,6 +609,8 @@ export interface Wallet {
   created_at: string;
   month_income?: number;
   month_expense?: number;
+  /** Au-delà du palier actuel : visible, inutilisable jusqu’au palier supérieur. */
+  locked?: boolean;
 }
 
 export interface Transaction {
@@ -634,6 +639,8 @@ export interface Category {
   type: 'income' | 'expense';
   image_url?: string | null;
   created_at: string;
+  /** Au-delà du palier actuel : visible, inutilisable jusqu’au palier supérieur. */
+  locked?: boolean;
 }
 
 export interface TransactionInput {

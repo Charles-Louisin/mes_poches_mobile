@@ -9,6 +9,7 @@ import { isAbortError, isTimeoutError } from '@/lib/errors';
 import { formatScanError } from '@/lib/scan-errors';
 import { notifyTransactionReady } from '@/lib/pending-notify';
 import { invalidateFinance } from '@/lib/query';
+import { useAuth } from '@/contexts/auth';
 import { ReceiptScanOverlay, type ScanPhase } from '@/components/capture/receipt-scan-overlay';
 import { ReceiptSourceSheet } from '@/components/capture/receipt-source-sheet';
 
@@ -22,6 +23,7 @@ type ReceiptScanContextValue = {
 const ReceiptScanContext = createContext<ReceiptScanContextValue | null>(null);
 
 export function ReceiptScanProvider({ children }: { children: ReactNode }) {
+  const { refreshMe } = useAuth();
   const [phase, setPhase] = useState<ScanPhase>('idle');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -101,6 +103,8 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
         void notifyTransactionReady(readyLabel);
         pendingImage.current = null;
         await invalidateFinance();
+        // Compteur de scans à jour (visible avant le prochain clic).
+        void refreshMe();
         setTimeout(() => {
           reset();
           router.push('/pending');
