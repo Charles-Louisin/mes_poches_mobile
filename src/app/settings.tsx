@@ -41,6 +41,10 @@ const EXPORT_OPTIONS: { value: ExportFormat; label: string; Icon: typeof CsvIcon
   { value: 'xlsx', label: 'Excel (XLSX)', Icon: ExcelIcon },
 ];
 
+/** AAAA-MM-JJ en heure locale (le nom du fichier et le titre suivent les dates vues par l’utilisateur). */
+const localYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 /** Ligne de réglage : icône, libellé, valeur courante et chevron (navigation). */
 function Row({
   icon,
@@ -138,6 +142,7 @@ export default function SettingsScreen() {
       setExporting((prev) => ({ ...prev, [format]: true }));
       const ext = format === 'xlsx' ? 'xlsx' : format;
       let query = '';
+      let span: { from: string; to: string } | null = null;
       if (user?.canExportRange && exportGrain !== 'all') {
         const chosen = exportPeriods.filter((period) => exportKeys.includes(period.key));
         if (!chosen.length) {
@@ -149,8 +154,16 @@ export default function SettingsScreen() {
           return;
         }
         query = `&ranges=${encodeURIComponent(chosen.map((period) => `${period.start}..${period.end}`).join(','))}`;
+        // Dates locales de début et de fin (incluse) : titre du document et nom du fichier.
+        const first = new Date(Math.min(...chosen.map((p) => new Date(p.start).getTime())));
+        const last = new Date(Math.max(...chosen.map((p) => new Date(p.end).getTime())) - 1);
+        span = { from: localYmd(first), to: localYmd(last) };
+        query += `&from=${span.from}&to=${span.to}`;
       }
-      const dest = await shareExport(`/export/transactions?format=${format}${query}`, `mes-poches-${Date.now()}.${ext}`);
+      const fileName = span
+        ? `mes-poches-releve-${span.from}${span.to !== span.from ? `_au_${span.to}` : ''}.${ext}`
+        : `mes-poches-releve-complet-${localYmd(new Date())}.${ext}`;
+      const dest = await shareExport(`/export/transactions?format=${format}${query}`, fileName);
       track('export', { screen: 'settings', props: { element: format } });
       const saved = exportSavedToast(dest);
       toast(saved.message, saved.tone);

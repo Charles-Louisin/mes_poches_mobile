@@ -43,9 +43,28 @@
         "buildType": "apk"
       },
       "channel": "production"
+    },
+    "playstore": {
+      "extends": "base",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_MONEY_CAPTURE": "true",
+        "EXPO_PUBLIC_DISTRIBUTION": "play",
+        "EXPO_PUBLIC_PAYMENTS_ENABLED": "false"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "playstore"
     }
   },
   "submit": {
-    "production": {}
+    "production": {},
+    "playstore": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

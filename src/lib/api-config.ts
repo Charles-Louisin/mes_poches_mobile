@@ -1,3 +1,4 @@
+import { isPlayBuild } from './distribution';
 import { Platform } from 'react-native';
 
 const PRODUCTION_API = 'https://mespochesbackend-production-dafd.up.railway.app/api';
@@ -36,5 +37,7 @@ export function getPrivacyUrl(): string {
 }
 
 export function isPaymentsEnabled(): boolean {
+  // Google Play impose sa facturation pour les abonnements : pas de paiement SasPay dans ce build.
+  if (isPlayBuild()) return false;
   return process.env.EXPO_PUBLIC_PAYMENTS_ENABLED === 'true';
 }

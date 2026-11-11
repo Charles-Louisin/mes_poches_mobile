@@ -36,7 +36,7 @@ export function TxExportRow({ transactionId }: { transactionId: string }) {
     try {
       const dest = await shareExport(
         `/export/transactions/${transactionId}?format=${format}`,
-        `transaction-${transactionId.slice(-8)}.${format}`
+        `mes-poches-operation-${transactionId.slice(-6)}.${format}`
       );
       const saved = exportSavedToast(dest);
       toast(saved.message, saved.tone);

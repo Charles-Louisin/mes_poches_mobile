@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth';
 import { BrandLockup } from '@/components/brand/brand-mark';
 import { Button } from '@/components/ui/button';
+import { PressScale } from '@/components/ui/press-scale';
+import { getPrivacyUrl } from '@/lib/api-config';
+import { isPlayBuild } from '@/lib/distribution';
 import {
   getSmsListenerStatus,
   isMoneyCaptureEnabled,
@@ -100,6 +103,30 @@ export default function CaptureSetupScreen() {
           confirmez avant tout enregistrement.
         </Text>
 
+        {/* Divulgation exigée par Google Play avant l'accès aux notifications. */}
+        <View style={styles.help}>
+          <Text style={styles.helpTitle}>Ce que Mes Poches lit et envoie</Text>
+          <Text style={styles.helpStep}>
+            Avec votre accord, l’application lit le texte des notifications reçues sur ce téléphone (SMS des opérateurs,
+            applications Mobile Money et bancaires) pour y repérer un paiement.
+          </Text>
+          <Text style={styles.helpStep}>
+            Seuls les messages liés à un mouvement d’argent (opérateur, banque, montant) sont envoyés à nos serveurs,
+            de façon chiffrée, pour en extraire le montant, la date et l’opérateur ; ceux sans identifiant de
+            transaction sont aussitôt écartés. Les autres notifications restent sur le téléphone.
+          </Text>
+          <Text style={styles.helpStep}>
+            Ces données servent uniquement à vous proposer des transactions à valider. Elles ne sont ni vendues ni
+            utilisées pour de la publicité. Vous pouvez retirer cet accès à tout moment dans les réglages Android.
+          </Text>
+          <PressScale
+            onPress={() => void Linking.openURL(getPrivacyUrl())}
+            accessibilityRole="link"
+            style={styles.privacyLink}>
+            <Text style={styles.privacyLinkT}>Lire la politique de confidentialité</Text>
+          </PressScale>
+        </View>
+
         <View style={styles.status}>
           <Text style={styles.statusLabel}>Accès aux notifications</Text>
           <Text style={[styles.statusValue, listenerOk ? styles.ok : styles.off]}>
@@ -125,7 +152,7 @@ export default function CaptureSetupScreen() {
           </Text>
         </View>
 
-        {restrictedPossible && !listenerOk ? (
+        {restrictedPossible && !listenerOk && !isPlayBuild() ? (
           <View style={styles.restricted}>
             <Text style={styles.helpTitle}>MES POCHES est grisé ou « Paramètre restreint » ?</Text>
             <Text style={styles.restrictedT}>
@@ -205,6 +232,8 @@ const styles = StyleSheet.create({
   },
   helpTitle: { fontFamily: font.sansSemi, fontSize: 15, color: color.text },
   helpStep: { fontFamily: font.sansMed, fontSize: 14, lineHeight: 21, color: color.text },
+  privacyLink: { alignSelf: 'flex-start', paddingVertical: 6 },
+  privacyLinkT: { fontFamily: font.sansSemi, fontSize: 14, color: color.primary, textDecorationLine: 'underline' },
   footer: { gap: 8, paddingTop: 8 },
   refused: { marginTop: 14, borderRadius: 16, padding: 16, gap: 8, backgroundColor: color.surface },
   restricted: { marginTop: 14, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: color.border },

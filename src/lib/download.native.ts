@@ -1,7 +1,7 @@
-import { File, Paths } from 'expo-file-system';
-import { Platform } from 'react-native';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Alert, Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import { saveToDownloads } from 'sms-monitor';
 import { getApiUrl } from './api-config';
 import { ApiError, isNetworkFailure, NETWORK_ERROR_MESSAGE, PremiumRequiredError } from './errors';
 import { getToken } from './secure-token';
@@ -13,7 +13,20 @@ const MIME: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
-export type ExportSaveResult = 'downloads' | 'shared';
+/** saved : enregistré dans le dossier choisi · cancelled : choix du dossier annulé · shared : feuille de partage (iOS). */
+export type ExportSaveResult = 'saved' | 'cancelled' | 'shared';
+
+/** Fuseau de l'appareil : les dates du fichier exporté suivent l'heure de l'utilisateur. */
+function withTimeZone(endpoint: string): string {
+  let tz = '';
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    /* Intl indisponible */
+  }
+  if (!tz || endpoint.includes('tz=')) return endpoint;
+  return `${endpoint}${endpoint.includes('?') ? '&' : '?'}tz=${encodeURIComponent(tz)}`;
+}
 
 export function mimeFor(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
@@ -21,9 +34,8 @@ export function mimeFor(filename: string): string {
 }
 
 export function exportSavedToast(result: ExportSaveResult): { message: string; tone: 'ok' | 'info' } {
-  if (result === 'downloads') {
-    return { message: 'Fichier enregistré dans Téléchargements.', tone: 'ok' };
-  }
+  if (result === 'saved') return { message: 'Fichier enregistré.', tone: 'ok' };
+  if (result === 'cancelled') return { message: 'Enregistrement annulé.', tone: 'info' };
   return { message: 'Choisissez où enregistrer le fichier.', tone: 'info' };
 }
 
@@ -42,14 +54,56 @@ function mapDownloadError(err: unknown): never {
   throw new ApiError('Téléchargement impossible. Réessayez.', { code: 'NETWORK' });
 }
 
-async function persistToDownloads(file: File, safeName: string): Promise<boolean> {
-  if (Platform.OS !== 'android') return false;
-  const uri = await saveToDownloads(file.uri, safeName, mimeFor(safeName));
-  return Boolean(uri);
+/** content://…/tree/X (dossier choisi) → content://…/document/X, que le gestionnaire de fichiers sait ouvrir. */
+export function folderDocumentUri(treeUri: string): string {
+  const match = treeUri.match(/^(content:\/\/[^/]+)\/tree\/([^/]+)/);
+  return match ? `${match[1]}/document/${match[2]}` : treeUri;
 }
 
-/** Télécharge le fichier API et l’enregistre dans le stockage du téléphone. */
+const FLAG_GRANT_READ = 1;
+const FLAG_NEW_TASK = 0x10000000;
+
+async function openFolder(folderUri: string, fileUri: string, mime: string): Promise<void> {
+  const flags = FLAG_GRANT_READ | FLAG_NEW_TASK;
+  try {
+    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+      data: folderDocumentUri(folderUri),
+      type: 'vnd.android.document/directory',
+      flags,
+    });
+    return;
+  } catch {
+    /* pas de gestionnaire de dossiers : on ouvre le fichier lui-même */
+  }
+  try {
+    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: fileUri, type: mime, flags });
+  } catch {
+    Alert.alert('Ouverture impossible', 'Ouvrez l’application Fichiers pour retrouver le document.');
+  }
+}
+
+function askOpenFolder(folderName: string, onOpen: () => void) {
+  Alert.alert(
+    'Fichier enregistré',
+    `Le fichier est dans « ${folderName} ». Voulez-vous ouvrir ce dossier ?`,
+    [
+      { text: 'Non', style: 'cancel' },
+      { text: 'Ouvrir le dossier', onPress: onOpen },
+    ]
+  );
+}
+
+function isCancel(err: unknown): boolean {
+  const raw = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+  return /cancel|annul|no directory|aborted/i.test(raw);
+}
+
+/**
+ * Télécharge l'export, demande le dossier où l'enregistrer (Android),
+ * l'y écrit, puis propose d'ouvrir ce dossier.
+ */
 export async function shareExport(endpoint: string, filename: string): Promise<ExportSaveResult> {
+  endpoint = withTimeZone(endpoint);
   const token = getToken();
   if (!token) {
     void revokeSession('expired');
@@ -57,6 +111,7 @@ export async function shareExport(endpoint: string, filename: string): Promise<E
   }
 
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const mime = mimeFor(safeName);
   const dest = new File(Paths.cache, safeName);
 
   let file: File;
@@ -69,18 +124,34 @@ export async function shareExport(endpoint: string, filename: string): Promise<E
     mapDownloadError(err);
   }
 
-  try {
-    if (await persistToDownloads(file, safeName)) return 'downloads';
-  } catch {
-    /* partage ci-dessous */
+  if (Platform.OS === 'android') {
+    let folder: Directory;
+    try {
+      folder = await Directory.pickDirectoryAsync();
+    } catch (err) {
+      if (isCancel(err)) return 'cancelled';
+      throw new ApiError('Impossible d’ouvrir le choix du dossier. Réessayez.');
+    }
+    try {
+      const target = folder.createFile(safeName, mime);
+      await target.write(await file.bytes());
+      const folderName = decodeURIComponent(folder.uri.split('/').pop() || '').split(':').pop() || 'le dossier choisi';
+      askOpenFolder(folderName, () => void openFolder(folder.uri, target.uri, mime));
+      return 'saved';
+    } catch {
+      throw new ApiError('Enregistrement impossible dans ce dossier. Choisissez-en un autre.');
+    } finally {
+      try {
+        file.delete();
+      } catch {
+        /* cache */
+      }
+    }
   }
 
+  // iOS : la feuille de partage propose « Enregistrer dans Fichiers » (choix du dossier).
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: mimeFor(safeName),
-      dialogTitle: safeName,
-      UTI: mimeFor(safeName),
-    });
+    await Sharing.shareAsync(file.uri, { mimeType: mime, dialogTitle: safeName, UTI: mime });
     return 'shared';
   }
   throw new ApiError('Enregistrement impossible. Réessayez.', { code: 'NETWORK' });

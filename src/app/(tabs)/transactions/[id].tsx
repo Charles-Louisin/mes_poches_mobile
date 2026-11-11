@@ -89,7 +89,16 @@ export default function TransactionDetailScreen() {
         wallet_id: walletId || undefined,
         category_id: categoryId || null,
         date,
-        ...(lineItems.length > 0 ? { line_items: sanitizeLineItems(lineItems) } : {}),
+        // Une seule ligne restante : elle prend le montant saisi.
+        ...(lineItems.length > 0
+          ? {
+              line_items: sanitizeLineItems(
+                lineItems.length === 1
+                  ? [{ ...lineItems[0], amount: n, quantity: 1, unit_amount: undefined }]
+                  : lineItems
+              ),
+            }
+          : {}),
       });
       await invalidateFinance();
       await q.refetch();
@@ -205,6 +214,14 @@ export default function TransactionDetailScreen() {
                   return next;
                 });
               }}
+              onRemove={(index) =>
+                setLineItems((prev) => {
+                  const next = prev.filter((_, i) => i !== index);
+                  const total = next.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+                  setAmount(String(total));
+                  return next;
+                })
+              }
               categories={q.data?.categories ?? []}
               parentCategoryName={catName}
               onCategoryChange={(index, catId) =>

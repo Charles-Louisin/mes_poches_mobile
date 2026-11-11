@@ -1,3 +1,4 @@
+import { isPlayBuild } from './distribution';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { fetchPublic } from './api-client';
@@ -37,6 +38,8 @@ export function compareVersions(a: string, b: string): number {
 
 /** Nouvel APK disponible ? `force` ignore le report « Plus tard » (écran Réglages → Mise à jour). */
 export async function checkApkUpdate(force = false): Promise<ApkUpdate | null> {
+  // Google Play : mises à jour uniquement par le Store (règle « Abus de l'appareil et du réseau »).
+  if (isPlayBuild()) return null;
   if (Platform.OS !== 'android') return null;
   let info: AppVersionInfo;
   try {

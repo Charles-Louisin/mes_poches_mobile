@@ -15,7 +15,8 @@ const BASE_PERMISSIONS = [
   'android.permission.WAKE_LOCK',
 ];
 
-const CAPTURE_PERMISSIONS = [
+/** L'app ne lit jamais les SMS (APK comme Google Play) : ces permissions sont retirées du manifeste. */
+const SMS_PERMISSIONS = [
   'android.permission.RECEIVE_SMS',
   'android.permission.READ_SMS',
 ];
@@ -24,6 +25,14 @@ function isCaptureBuild() {
   return (
     process.env.EXPO_PUBLIC_MONEY_CAPTURE === 'true' ||
     process.env.EAS_BUILD_PROFILE === 'production'
+  );
+}
+
+/** Build Google Play : pas de mise à jour par APK, pas de paiement hors Google Play. */
+function isPlayBuild() {
+  return (
+    process.env.EXPO_PUBLIC_DISTRIBUTION === 'play' ||
+    process.env.EAS_BUILD_PROFILE === 'playstore'
   );
 }
 
@@ -88,38 +97,26 @@ function removePermission(manifest, name) {
 
 function withListenerManifest(config) {
   const capture = isCaptureBuild();
+  const play = isPlayBuild();
   return withAndroidManifest(config, (mod) => {
     const manifest = mod.modResults.manifest;
     ensureToolsNs(manifest);
     BASE_PERMISSIONS.forEach((name) => ensurePermission(manifest, name));
-    if (capture) {
-      CAPTURE_PERMISSIONS.forEach((name) => ensurePermission(manifest, name));
-    } else {
-      CAPTURE_PERMISSIONS.forEach((name) => removePermission(manifest, name));
-    }
+    SMS_PERMISSIONS.forEach((name) => removePermission(manifest, name));
+    // Jamais d'installation d'APK depuis l'app (Play : mises à jour uniquement par le Store).
+    if (play) removePermission(manifest, 'android.permission.REQUEST_INSTALL_PACKAGES');
 
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(mod.modResults);
     app.$ = app.$ || {};
     app.$['android:allowBackup'] = 'false';
 
-    if (capture) {
-      app.receiver = upsertNamed(app.receiver, 'com.mespoches.app.SmsReceiver', {
-        $: {
-          'android:name': 'com.mespoches.app.SmsReceiver',
-          'android:exported': 'true',
-          'android:permission': 'android.permission.BROADCAST_SMS',
-          'tools:node': 'replace',
-        },
-        'intent-filter': [
-          {
-            $: { 'android:priority': '999' },
-            action: [{ $: { 'android:name': 'android.provider.Telephony.SMS_RECEIVED' } }],
-          },
-        ],
-      });
-    } else {
-      app.receiver = removeNamed(app.receiver, 'com.mespoches.app.SmsReceiver');
-    }
+    // Canal de distribution lu par l'app (natif : une mise à jour OTA ne peut pas le changer).
+    app['meta-data'] = upsertNamed(app['meta-data'], 'com.mespoches.DISTRIBUTION', {
+      $: { 'android:name': 'com.mespoches.DISTRIBUTION', 'android:value': play ? 'play' : 'direct' },
+    });
+
+    // Ancien récepteur de SMS : retiré s'il traîne dans un manifeste généré.
+    app.receiver = removeNamed(app.receiver, 'com.mespoches.app.SmsReceiver');
 
     app.receiver = upsertNamed(app.receiver, 'com.mespoches.app.DailyReminderReceiver', {
       $: {
@@ -296,10 +293,7 @@ function withAppProguard(config) {
 
 function withSmsMonitor(config) {
   const capture = isCaptureBuild();
-  config = AndroidConfig.Permissions.withPermissions(
-    config,
-    capture ? [...BASE_PERMISSIONS, ...CAPTURE_PERMISSIONS] : BASE_PERMISSIONS
-  );
+  config = AndroidConfig.Permissions.withPermissions(config, BASE_PERMISSIONS);
   config = withListenerManifest(config);
   if (capture) {
     config = withNotifProcessApplication(config);

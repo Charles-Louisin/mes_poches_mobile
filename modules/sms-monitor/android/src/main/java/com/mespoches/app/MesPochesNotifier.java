@@ -162,7 +162,7 @@ public final class MesPochesNotifier {
             "Rappels quotidiens",
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        channel.setDescription("Rappel de 20 h pour enregistrer ou valider vos transactions");
+        channel.setDescription("Rappel de 19 h pour enregistrer ou valider vos transactions");
         nm.createNotificationChannel(channel);
     }
 

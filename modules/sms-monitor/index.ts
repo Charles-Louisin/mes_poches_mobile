@@ -1,5 +1,6 @@
 export {
   isSmsMonitorAvailable,
+  getDistribution,
   storeAuthToken,
   clearAuthToken,
   isNotificationListenerEnabled,

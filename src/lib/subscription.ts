@@ -1,3 +1,4 @@
+import { isPlayBuild } from './distribution';
 import type { MeUser } from './api';
 import { PREMIUM_REQUIRED_CODE } from './planLimits';
 
@@ -47,6 +48,7 @@ export function getUpgradePath(): string {
 }
 
 export function isSubscriptionPaymentEnabled(): boolean {
+  if (isPlayBuild()) return false;
   return process.env.EXPO_PUBLIC_PAYMENTS_ENABLED === 'true';
 }
 

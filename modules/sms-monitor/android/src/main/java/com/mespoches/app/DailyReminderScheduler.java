@@ -9,7 +9,7 @@ import java.util.Calendar;
 
 public final class DailyReminderScheduler {
     private static final int REQ = 9101;
-    private static final int HOUR = 20;
+    private static final int HOUR = 19;
     private static final int MINUTE = 0;
 
     private DailyReminderScheduler() {}
@@ -35,10 +35,18 @@ public final class DailyReminderScheduler {
         }
 
         long at = cal.getTimeInMillis();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-        } else {
-            am.setExact(AlarmManager.RTC_WAKEUP, at, pi);
+        // Android 12+ : l'heure exacte demande l'autorisation « Alarmes et rappels ».
+        // Sans elle, alarme autorisée en veille (quelques minutes de décalage possibles) plutôt qu'aucun rappel.
+        boolean exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            } else {
+                am.setExact(AlarmManager.RTC_WAKEUP, at, pi);
+            }
+        } catch (SecurityException e) {
+            am.set(AlarmManager.RTC_WAKEUP, at, pi);
         }
     }
 

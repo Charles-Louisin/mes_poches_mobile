@@ -31,6 +31,21 @@ class SmsMonitorModule : Module() {
       SmsMonitorEvents.emitter = null
     }
 
+    // Canal de distribution écrit à la compilation (meta-data) : « play » ou « direct ».
+    Function("getDistribution") {
+      val ctx = appContext.reactContext
+      if (ctx == null) {
+        "direct"
+      } else {
+        try {
+          val info = ctx.packageManager.getApplicationInfo(ctx.packageName, android.content.pm.PackageManager.GET_META_DATA)
+          info.metaData?.getString("com.mespoches.DISTRIBUTION") ?: "direct"
+        } catch (e: Exception) {
+          "direct"
+        }
+      }
+    }
+
     AsyncFunction("storeAuthToken") { token: String, apiUrl: String? ->
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       SmsAuthStore.store(ctx, token, apiUrl)

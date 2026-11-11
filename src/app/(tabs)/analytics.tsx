@@ -34,6 +34,7 @@ import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Sheet } from '@/components/ui/sheet';
 import { MonthTrigger } from '@/components/analytics/month-trigger';
+import { SectionHead, useSectionSort } from '@/components/analytics/section-sort';
 import { color, radius, type as font, typeScale } from '@/theme/tokens';
 
 type StoredBriefing = {
@@ -250,6 +251,29 @@ export default function AnalyticsScreen() {
   const vsStats = vsQ.data;
   const comparison = s && vsStats ? compareMonths(s, vsStats) : null;
   const maxWeek = Math.max(1, ...(o?.weekday.map((d) => d.expense) ?? [1]));
+
+  // Tri propre à chaque section (bouton « Trier » → feuille du bas).
+  const expSort = useSectionSort(o?.expenses ?? [], { name: (c) => c.category, amount: (c) => c.total });
+  const incSort = useSectionSort(o?.incomes ?? [], { name: (c) => c.category, amount: (c) => c.total });
+  const budgetSort = useSectionSort(o?.budgets ?? [], { name: (b) => b.category, amount: (b) => b.spent });
+  const savingsSort = useSectionSort(o?.savings ?? [], {
+    name: (g) => g.title,
+    amount: (g) => g.current,
+    date: (g) => g.deadline,
+  });
+  const walletSort = useSectionSort(o?.wallets ?? [], { name: (w) => w.name, amount: (w) => w.net });
+  const weekSort = useSectionSort(
+    o?.weekday ?? [],
+    { name: (d) => d.day, amount: (d) => d.expense },
+    'Ordre de la semaine'
+  );
+  const topSort = useSectionSort(o?.topExpenses ?? [], {
+    name: (t) => t.description,
+    amount: (t) => t.amount,
+    date: (t) => t.date,
+    category: (t) => t.category,
+    wallet: (t) => t.wallet,
+  });
 
   return (
     <Screen scroll onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
@@ -490,9 +514,11 @@ export default function AnalyticsScreen() {
             )}
           </Card>
 
-          <Text style={styles.sec}>Sorties par catégorie</Text>
+          <SectionHead title="Sorties par catégorie" button={expSort.button} />
+          {expSort.sheet}
           <Card style={styles.block}>
-            {(o.expenses.length ? o.expenses : []).map((c) => {
+            {expSort.hiddenByRange > 0 && expSort.items.length === 0 ? <Text style={styles.empty}>Rien dans cette tranche</Text> : null}
+            {expSort.items.map((c) => {
               const share = o.selected.totalExpense > 0 ? (c.total / o.selected.totalExpense) * 100 : 0;
               const locked = lockedCats.has(`expense:${c.category}`);
               return (
@@ -516,9 +542,11 @@ export default function AnalyticsScreen() {
             {o.expenses.length === 0 ? <Text style={styles.empty}>Aucune sortie classée</Text> : null}
           </Card>
 
-          <Text style={styles.sec}>Entrées par catégorie</Text>
+          <SectionHead title="Entrées par catégorie" button={incSort.button} />
+          {incSort.sheet}
           <Card style={styles.block}>
-            {o.incomes.map((c) => {
+            {incSort.hiddenByRange > 0 && incSort.items.length === 0 ? <Text style={styles.empty}>Rien dans cette tranche</Text> : null}
+            {incSort.items.map((c) => {
               const share = o.selected.totalIncome > 0 ? (c.total / o.selected.totalIncome) * 100 : 0;
               const locked = lockedCats.has(`income:${c.category}`);
               return (
@@ -542,17 +570,20 @@ export default function AnalyticsScreen() {
             {o.incomes.length === 0 ? <Text style={styles.empty}>Aucune entrée classée</Text> : null}
           </Card>
 
-          <View style={styles.secRow}>
-            <Target color={color.primary} size={16} />
-            <Text style={styles.secInline}>Budgets du mois</Text>
-          </View>
+          <SectionHead
+            title="Budgets du mois"
+            icon={<Target color={color.primary} size={16} />}
+            button={o.budgets.length > 1 ? budgetSort.button : null}
+          />
+          {budgetSort.sheet}
           {o.budgets.length === 0 ? (
             <PressScale onPress={() => router.push('/objectifs')} style={styles.ghost}>
               <Text style={styles.ghostT}>Aucun budget — en créer un</Text>
             </PressScale>
           ) : (
             <Card style={styles.block}>
-              {o.budgets.map((b) => (
+              {budgetSort.hiddenByRange > 0 && budgetSort.items.length === 0 ? <Text style={styles.empty}>Rien dans cette tranche</Text> : null}
+              {budgetSort.items.map((b) => (
                 <View key={b.id} style={styles.catRow}>
                   <View style={styles.budgetRow}>
                     <Text style={styles.cat}>{b.category}</Text>
@@ -572,10 +603,12 @@ export default function AnalyticsScreen() {
             </Card>
           )}
 
-          <View style={styles.secRow}>
-            <PiggyBank color={color.primary} size={16} />
-            <Text style={styles.secInline}>Épargne</Text>
-          </View>
+          <SectionHead
+            title="Épargne"
+            icon={<PiggyBank color={color.primary} size={16} />}
+            button={o.savings.length > 1 ? savingsSort.button : null}
+          />
+          {savingsSort.sheet}
           <Card style={styles.block}>
             <Text style={styles.meta}>
               Versé ce mois : {formatAmount(o.kpis.savingsDeposited)} · Encours {formatAmount(o.kpis.totalSavings)}
@@ -585,7 +618,7 @@ export default function AnalyticsScreen() {
                 <Text style={styles.ghostT}>Créer un objectif d’épargne</Text>
               </PressScale>
             ) : (
-              o.savings.map((g) => (
+              savingsSort.items.map((g) => (
                 <View key={g.id} style={styles.catRow}>
                   <View style={styles.budgetRow}>
                     <Text style={styles.cat}>{g.title}</Text>
@@ -605,13 +638,18 @@ export default function AnalyticsScreen() {
 
           {o.wallets.length > 0 ? (
             <>
-              <View style={styles.secRow}>
-                <Wallet color={color.primary} size={16} />
-                <Text style={styles.secInline}>Poches</Text>
-              </View>
+              <SectionHead
+                title="Poches"
+                icon={<Wallet color={color.primary} size={16} />}
+                button={walletSort.button}
+              />
+              {walletSort.sheet}
               <Card padded={false} style={styles.block}>
-                {o.wallets.map((w, i) => (
-                  <View key={w.id} style={[styles.cmpRow, i === o.wallets.length - 1 && styles.lastRow]}>
+                {walletSort.hiddenByRange > 0 && walletSort.items.length === 0 ? (
+                  <Text style={[styles.empty, { padding: 16 }]}>Rien dans cette tranche</Text>
+                ) : null}
+                {walletSort.items.map((w, i) => (
+                  <View key={w.id} style={[styles.cmpRow, i === walletSort.items.length - 1 && styles.lastRow]}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cat}>{w.name}</Text>
                       <Text style={styles.share}>
@@ -630,9 +668,11 @@ export default function AnalyticsScreen() {
 
           {o.weekday.length > 0 ? (
             <>
-              <Text style={styles.sec}>Rythme de la semaine</Text>
+              <SectionHead title="Rythme de la semaine" button={weekSort.button} />
+              {weekSort.sheet}
               <Card style={styles.block}>
-                {o.weekday.map((d) => (
+                {weekSort.hiddenByRange > 0 && weekSort.items.length === 0 ? <Text style={styles.empty}>Rien dans cette tranche</Text> : null}
+                {weekSort.items.map((d) => (
                   <View key={d.day} style={styles.weekRow}>
                     <Text style={styles.weekDay}>{d.day}</Text>
                     <View style={{ flex: 1 }}>
@@ -647,18 +687,24 @@ export default function AnalyticsScreen() {
 
           {o.topExpenses.length > 0 ? (
             <>
-              <Text style={styles.sec}>Plus grosses sorties</Text>
+              <SectionHead title="Plus grosses sorties" button={topSort.button} />
+              {topSort.sheet}
               <Card padded={false} style={styles.block}>
-                {o.topExpenses.map((t, i) => (
+                {topSort.hiddenByRange > 0 && topSort.items.length === 0 ? (
+                  <Text style={[styles.empty, { padding: 16 }]}>Rien dans cette tranche</Text>
+                ) : null}
+                {topSort.items.map((t, i) => (
                   <PressScale
                     key={t.id}
                     onPress={() => router.push(`/transactions/${t.id}`)}
-                    style={[styles.cmpRow, i === o.topExpenses.length - 1 && styles.lastRow]}>
+                    style={[styles.cmpRow, i === topSort.items.length - 1 && styles.lastRow]}>
                     <View style={{ flex: 1, paddingRight: 12 }}>
                       <Text style={styles.cat} numberOfLines={1}>
                         {t.description}
                       </Text>
-                      <Text style={styles.share}>{formatDate(t.date)}</Text>
+                      <Text style={styles.share} numberOfLines={1}>
+                        {[formatDate(t.date), t.category, t.wallet].filter(Boolean).join(' · ')}
+                      </Text>
                     </View>
                     <Text style={[styles.amt, styles.bad]}>{formatAmount(t.amount)}</Text>
                   </PressScale>

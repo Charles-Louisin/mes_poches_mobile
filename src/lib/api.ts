@@ -746,6 +746,7 @@ export interface AnalyticsHit {
   amount: number;
   date: string;
   category: string | null;
+  wallet?: string | null;
 }
 
 export interface MonthOverview {

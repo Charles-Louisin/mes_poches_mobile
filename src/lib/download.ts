@@ -6,7 +6,19 @@ const MIME: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
-export type ExportSaveResult = 'downloads' | 'shared';
+export type ExportSaveResult = 'saved' | 'cancelled' | 'shared';
+
+/** Fuseau de l'appareil : les dates du fichier exporté suivent l'heure de l'utilisateur. */
+function withTimeZone(endpoint: string): string {
+  let tz = '';
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    /* Intl indisponible */
+  }
+  if (!tz || endpoint.includes('tz=')) return endpoint;
+  return `${endpoint}${endpoint.includes('?') ? '&' : '?'}tz=${encodeURIComponent(tz)}`;
+}
 
 export function mimeFor(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
@@ -18,6 +30,7 @@ export function exportSavedToast(_result: ExportSaveResult): { message: string; 
 }
 
 export async function shareExport(endpoint: string, filename: string): Promise<ExportSaveResult> {
+  endpoint = withTimeZone(endpoint);
   const blob = await fetchApiBlob(endpoint);
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const url = URL.createObjectURL(blob);
@@ -26,7 +39,7 @@ export async function shareExport(endpoint: string, filename: string): Promise<E
   a.download = safeName;
   a.click();
   URL.revokeObjectURL(url);
-  return 'downloads';
+  return 'saved';
 }
 
 export async function shareBlob(blob: Blob, filename: string): Promise<void> {

@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 
 type SmsMonitorNative = {
+  getDistribution?(): string;
   storeAuthToken(token: string, apiUrl?: string | null): Promise<void>;
   clearAuthToken(): Promise<void>;
   isNotificationListenerEnabled(): Promise<{ enabled: boolean; connected?: boolean }>;
@@ -24,6 +25,16 @@ type SmsMonitorNative = {
 };
 
 const native = requireOptionalNativeModule<SmsMonitorNative>('SmsMonitor');
+
+/** « play » pour le build Google Play, « direct » pour l'APK du site (lu dans le manifeste). */
+export function getDistribution(): 'play' | 'direct' | null {
+  try {
+    const value = native?.getDistribution?.();
+    return value === 'play' ? 'play' : value === 'direct' ? 'direct' : null;
+  } catch {
+    return null;
+  }
+}
 
 export function isSmsMonitorAvailable(): boolean {
   return native != null;
