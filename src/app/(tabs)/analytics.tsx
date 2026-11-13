@@ -76,6 +76,11 @@ export default function AnalyticsScreen() {
   const created = user?.created_at ? new Date(user.created_at) : new Date(now.getFullYear(), 0, 1);
   const months = useMemo(() => listMonths(created, now), [created, now]);
   const label = monthLabel(cursor.year, cursor.month);
+  /** Historique de la catégorie, filtré sur le mois analysé. */
+  const openCategory = (id?: string | null) => {
+    if (!id) return;
+    router.push(`/categories/${id}?month=${cursor.year}-${String(cursor.month).padStart(2, '0')}` as never);
+  };
   const vsLabel = monthLabel(vs.year, vs.month);
   const usedToday = generatedOn === localDateKey();
   const vsMonths = useMemo(() => {
@@ -455,7 +460,7 @@ export default function AnalyticsScreen() {
           </View>
 
           {o.kpis.isCurrent ? (
-            <Card style={styles.block}>
+            <Card style={[styles.block, styles.projection]}>
               <Text style={styles.sec}>Projection de fin de mois</Text>
               <Text style={styles.body}>
                 Au rythme actuel, les sorties iraient vers {formatAmount(o.kpis.projectedExpense)} sur{' '}
@@ -471,7 +476,7 @@ export default function AnalyticsScreen() {
           ) : null}
 
           <View style={styles.vsRow}>
-            <Text style={styles.vsLabel}>Vs</Text>
+            <Text style={styles.vsLabel}>Comparer avec</Text>
             <MonthTrigger inline label={vsLabel} onPress={() => setPicker('vs')} />
           </View>
           <Card padded={false} style={styles.block}>
@@ -524,9 +529,10 @@ export default function AnalyticsScreen() {
               return (
                 <PressScale
                   key={c.category}
-                  disabled={!locked}
-                  onPress={() => promptLocked('categories', catQuota)}
-                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : undefined}
+                  disabled={!locked && !c.categoryId}
+                  onPress={() => (locked ? promptLocked('categories', catQuota) : openCategory(c.categoryId))}
+                  accessibilityRole="button"
+                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : 'Voir les transactions de cette catégorie'}
                   style={[styles.catRow, locked && styles.catLocked]}>
                   <View style={styles.budgetRow}>
                     <Text style={[styles.cat, locked && styles.catMuted]}>{c.category}</Text>
@@ -552,9 +558,10 @@ export default function AnalyticsScreen() {
               return (
                 <PressScale
                   key={c.category}
-                  disabled={!locked}
-                  onPress={() => promptLocked('categories', catQuota)}
-                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : undefined}
+                  disabled={!locked && !c.categoryId}
+                  onPress={() => (locked ? promptLocked('categories', catQuota) : openCategory(c.categoryId))}
+                  accessibilityRole="button"
+                  accessibilityHint={locked ? 'Catégorie hors de votre forfait' : 'Voir les transactions de cette catégorie'}
                   style={[styles.catRow, locked && styles.catLocked]}>
                   <View style={styles.budgetRow}>
                     <Text style={[styles.cat, locked && styles.catMuted]}>{c.category}</Text>
@@ -848,6 +855,7 @@ const styles = StyleSheet.create({
   },
   kpiV: { ...typeScale.h3, color: color.text, marginTop: 4 },
   block: { marginBottom: 4 },
+  projection: { marginTop: 20 },
   sec: {
     marginTop: 28,
     marginBottom: 10,

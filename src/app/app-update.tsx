@@ -10,7 +10,7 @@ import {
   runningUpdateLabel,
 } from '@/lib/app-updates';
 import { getErrorMessage } from '@/lib/errors';
-import { checkApkUpdate, installedVersion, type ApkUpdate } from '@/lib/app-version';
+import { checkApkUpdate, effectiveVersion, installedVersion, type ApkUpdate } from '@/lib/app-version';
 import { ApkUpdateModal } from '@/components/apk-update-modal';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -26,10 +26,12 @@ export default function AppUpdateScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [apk, setApk] = useState<ApkUpdate | null>(null);
   const [apkOpen, setApkOpen] = useState(false);
+  const [version, setVersion] = useState(installedVersion());
 
   const refresh = useCallback(async () => {
     if (Platform.OS === 'web') return;
     setApk(await checkApkUpdate(true));
+    setVersion(await effectiveVersion());
     if (!otaUpdatesActive()) {
       setAvailable(false);
       setMessage(null);
@@ -78,13 +80,13 @@ export default function AppUpdateScreen() {
     <Screen scroll keyboardAware>
       <ScreenHeader title="Mise à jour" back />
       <Text style={styles.lede}>
-        Les mises à jour légères (interface, corrections) arrivent ici sans retélécharger l’app depuis le store.
+        Les corrections et nouveautés légères s’installent ici, sans retélécharger l’app.
       </Text>
 
       <View style={styles.box}>
         <Text style={styles.k}>Version installée</Text>
         <Text style={styles.v}>
-          {installedVersion()} · {runningUpdateLabel()}
+          {version} · {runningUpdateLabel()}
         </Text>
         <Text style={styles.k}>
           Canal {Updates.channel ?? '—'} · runtime {Updates.runtimeVersion ?? '—'}

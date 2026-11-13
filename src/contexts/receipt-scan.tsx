@@ -107,7 +107,10 @@ export function ReceiptScanProvider({ children }: { children: ReactNode }) {
         void refreshMe();
         setTimeout(() => {
           reset();
-          router.push('/pending');
+          // Plusieurs fiches ou plusieurs lignes : on ouvre l'atelier de tri avant validation.
+          if (count > 1 || lineCount > 1) {
+            router.push(`/pending-arrange?ids=${created.map((t) => t._id).join(',')}` as never);
+          } else router.push('/pending');
         }, 1400);
         return true;
       } catch (e) {

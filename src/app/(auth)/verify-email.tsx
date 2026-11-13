@@ -19,6 +19,7 @@ export default function VerifyEmailScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
 
   const email = pendingEmail ?? '';
 
@@ -37,7 +38,8 @@ export default function VerifyEmailScreen() {
   };
 
   const resend = async () => {
-    if (cooldown > 0) return;
+    if (cooldown > 0 || resending) return;
+    setResending(true);
     try {
       await resendCodeRequest(email);
       setCooldown(60);
@@ -48,7 +50,9 @@ export default function VerifyEmailScreen() {
         const sec = (err.data as { cooldownSeconds?: number } | undefined)?.cooldownSeconds ?? 60;
         setCooldown(sec);
       }
-      toast(getErrorMessage(err, 'Impossible'), 'err');
+      toast(getErrorMessage(err, 'Envoi impossible'), 'err');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -71,9 +75,9 @@ export default function VerifyEmailScreen() {
       />
       <View style={{ height: 24 }} />
       <Button label="Vérifier" loadingLabel="Vérification…" onPress={() => void submit()} loading={loading} disabled={code.length !== 6} />
-      <PressScale onPress={() => void resend()} disabled={cooldown > 0} accessibilityRole="button" style={styles.resendBtn}>
-        <Text style={[styles.resend, cooldown > 0 && styles.resendOff]}>
-          {cooldown > 0 ? `Renvoyer un code dans ${cooldown} s` : 'Renvoyer un code'}
+      <PressScale onPress={() => void resend()} disabled={cooldown > 0 || resending} accessibilityRole="button" accessibilityState={{ busy: resending }} style={styles.resendBtn}>
+        <Text style={[styles.resend, (cooldown > 0 || resending) && styles.resendOff]}>
+          {resending ? 'Envoi du code…' : cooldown > 0 ? `Renvoyer un code dans ${cooldown} s` : 'Renvoyer un code'}
         </Text>
       </PressScale>
     </Screen>

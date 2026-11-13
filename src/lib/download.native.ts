@@ -4,7 +4,7 @@ import { Alert, Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { getApiUrl } from './api-config';
 import { ApiError, isNetworkFailure, NETWORK_ERROR_MESSAGE, PremiumRequiredError } from './errors';
-import { getToken } from './secure-token';
+import { getToken, loadToken } from './secure-token';
 import { revokeSession } from './session';
 
 const MIME: Record<string, string> = {
@@ -104,7 +104,7 @@ function isCancel(err: unknown): boolean {
  */
 export async function shareExport(endpoint: string, filename: string): Promise<ExportSaveResult> {
   endpoint = withTimeZone(endpoint);
-  const token = getToken();
+  const token = getToken() ?? (await loadToken());
   if (!token) {
     void revokeSession('expired');
     throw new ApiError('Session expirée. Reconnectez-vous.', { code: 'SESSION_REVOKED', status: 401 });

@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  ChevronDown,
   ChevronRight,
   Coins,
   Crown,
@@ -10,6 +11,7 @@ import {
   LogOut,
   MessageCircle,
   RefreshCw,
+  Search,
   ShieldCheck,
   User,
 } from 'lucide-react-native';
@@ -17,7 +19,8 @@ import { useAuth } from '@/contexts/auth';
 import { useConfirm } from '@/contexts/confirm';
 import { useCurrency } from '@/contexts/currency';
 import { useToast } from '@/contexts/toast';
-import { type ExportFormat } from '@/lib/api';
+import { categoryApi, type ExportFormat } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import { listExportPeriods, type ExportGrain } from '@/lib/export-periods';
 import { WALLET_CURRENCIES } from '@/lib/currencies';
 import { exportSavedToast, shareExport } from '@/lib/download';
@@ -85,6 +88,27 @@ export default function SettingsScreen() {
   const { logout, isPremium, isOnTrial, requirePremium, user } = useAuth();
   const [exportGrain, setExportGrain] = useState<'all' | ExportGrain>('all');
   const [exportKeys, setExportKeys] = useState<string[]>([]);
+  /** Export par catégorie (Business) : vide = toutes. */
+  const [exportCats, setExportCats] = useState<string[]>([]);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const [catSearch, setCatSearch] = useState('');
+  const cats = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoryApi.getAll(),
+    enabled: !!user?.canExportRange,
+  });
+  const catList = cats.data ?? [];
+  const shownCats = catList.filter((c) => c.name.toLowerCase().includes(catSearch.trim().toLowerCase()));
+  /** Coche (ou décoche) d'un coup toutes les catégories d'un sens. */
+  const toggleKind = (type: 'income' | 'expense') => {
+    const ids = catList.filter((c) => c.type === type).map((c) => c._id);
+    const all = ids.length > 0 && ids.every((id) => exportCats.includes(id));
+    setExportCats((prev) => (all ? prev.filter((id) => !ids.includes(id)) : [...new Set([...prev, ...ids])]));
+  };
+  const kindAll = (type: 'income' | 'expense') => {
+    const ids = catList.filter((c) => c.type === type).map((c) => c._id);
+    return ids.length > 0 && ids.every((id) => exportCats.includes(id));
+  };
   const exportFormats = user?.exportFormats;
   const visibleExports = exportFormats?.length
     ? EXPORT_OPTIONS.filter((o) => exportFormats.includes(o.value))
@@ -160,6 +184,7 @@ export default function SettingsScreen() {
         span = { from: localYmd(first), to: localYmd(last) };
         query += `&from=${span.from}&to=${span.to}`;
       }
+      if (user?.canExportRange && exportCats.length) query += `&categories=${exportCats.join(',')}`;
       const fileName = span
         ? `mes-poches-releve-${span.from}${span.to !== span.from ? `_au_${span.to}` : ''}.${ext}`
         : `mes-poches-releve-complet-${localYmd(new Date())}.${ext}`;
@@ -255,8 +280,8 @@ export default function SettingsScreen() {
       <Sheet open={exportOpen} onClose={() => setExportOpen(false)} title="Exporter mes transactions">
         <Text style={styles.exportHint}>
           {user?.canExportRange
-            ? 'Cochez les mois, les semaines ou les jours depuis votre inscription, puis le format. Les articles d’un reçu sont inclus.'
-            : 'Toutes vos transactions, dans le format de votre choix. Les articles d’un reçu sont inclus.'}
+            ? 'Choisissez la période, les catégories si besoin, puis le format. Les articles d’un ticket sont inclus.'
+            : 'Toutes vos transactions, dans le format choisi. Les articles d’un ticket sont inclus.'}
         </Text>
         {user?.canExportRange ? (
           <View>
@@ -319,6 +344,63 @@ export default function SettingsScreen() {
             ) : null}
           </View>
         ) : null}
+        {user?.canExportRange ? (
+          <View style={{ marginBottom: 12 }}>
+            <PressScale onPress={() => setCatsOpen((v) => !v)} style={styles.catPick} accessibilityRole="button" accessibilityState={{ expanded: catsOpen }}>
+              <Text style={styles.catPickK}>Catégories</Text>
+              <Text style={styles.catPickV} numberOfLines={1}>
+                {exportCats.length === 0
+                  ? 'Toutes'
+                  : exportCats.length === 1
+                    ? cats.data?.find((c) => c._id === exportCats[0])?.name ?? '1 catégorie'
+                    : `${exportCats.length} catégories`}
+              </Text>
+              {catsOpen ? <ChevronDown color={color.primary} size={18} /> : <ChevronRight color={color.textMuted} size={18} />}
+            </PressScale>
+            {catsOpen ? (
+              <View style={styles.catPanel}>
+                <View style={styles.ranges}>
+                  <PressScale onPress={() => setExportCats([])} style={[styles.range, exportCats.length === 0 && styles.rangeOn]}>
+                    <Text style={[styles.rangeT, exportCats.length === 0 && styles.rangeTon]}>Toutes</Text>
+                  </PressScale>
+                  <PressScale onPress={() => toggleKind('income')} style={[styles.range, kindAll('income') && styles.rangeOn]}>
+                    <Text style={[styles.rangeT, kindAll('income') && styles.rangeTon]}>Toutes les entrées</Text>
+                  </PressScale>
+                  <PressScale onPress={() => toggleKind('expense')} style={[styles.range, kindAll('expense') && styles.rangeOn]}>
+                    <Text style={[styles.rangeT, kindAll('expense') && styles.rangeTon]}>Toutes les sorties</Text>
+                  </PressScale>
+                </View>
+                <View style={styles.catSearch}>
+                  <Search color={color.textMuted} size={16} />
+                  <TextInput
+                    value={catSearch}
+                    onChangeText={setCatSearch}
+                    placeholder="Rechercher une catégorie"
+                    placeholderTextColor={color.textMuted}
+                    style={styles.catSearchInput}
+                  />
+                </View>
+              <ScrollView style={styles.catScroll} nestedScrollEnabled keyboardShouldPersistTaps="always">
+                {shownCats.length === 0 ? <Text style={styles.catEmpty}>Aucune catégorie ne correspond.</Text> : null}
+                {shownCats.map((c) => {
+                  const on = exportCats.includes(c._id);
+                  return (
+                    <PressScale
+                      key={c._id}
+                      onPress={() => setExportCats((prev) => (on ? prev.filter((x) => x !== c._id) : [...prev, c._id]))}
+                      style={styles.period}>
+                      <View style={[styles.box, on && styles.boxOn]} />
+                      <Text style={styles.periodT}>
+                        {c.name} <Text style={{ color: color.textMuted }}>· {c.type === 'income' ? 'entrée' : 'sortie'}</Text>
+                      </Text>
+                    </PressScale>
+                  );
+                })}
+              </ScrollView>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <OptionList
           options={visibleExports.map((o) => ({
             value: o.value,
@@ -368,4 +450,29 @@ const styles = StyleSheet.create({
     backgroundColor: color.white,
   },
   boxOn: { backgroundColor: color.primary, borderColor: color.primary },
+  catPick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 52,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: color.surface,
+  },
+  catPickK: { fontFamily: font.sansMed, fontSize: 15, color: color.text },
+  catPanel: { marginTop: 12, gap: 10 },
+  catSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: color.surface,
+  },
+  catSearchInput: { flex: 1, fontFamily: font.sans, fontSize: 15, color: color.text, paddingVertical: 8 },
+  // Beaucoup de catégories : hauteur limitée, on fait défiler la liste.
+  catScroll: { maxHeight: 220, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: color.border, paddingHorizontal: 12 },
+  catEmpty: { fontFamily: font.sans, fontSize: 14, color: color.textMuted, paddingVertical: 12 },
+  catPickV: { flex: 1, textAlign: 'right', fontFamily: font.sans, fontSize: 14, color: color.textSecondary },
 });

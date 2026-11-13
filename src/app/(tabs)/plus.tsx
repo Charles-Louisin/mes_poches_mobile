@@ -8,10 +8,12 @@ import {
   MessageCircle,
   Settings,
   Smartphone,
+  Sparkles,
   Target,
   type LucideIcon,
 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/auth';
+import { useWhatsNew } from '@/contexts/whats-new';
 import { GoldDiamond } from '@/components/ui/gold-diamond';
 import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
@@ -19,7 +21,7 @@ import { color, type as font } from '@/theme/tokens';
 import { isMoneyCaptureEnabled } from '@/lib/sms-monitor';
 import { track } from '@/lib/telemetry';
 
-type LinkItem = { href: string; label: string; hint: string; Icon: LucideIcon; pro?: boolean };
+type LinkItem = { href: string; label: string; hint: string; Icon: LucideIcon; pro?: boolean; action?: () => void };
 
 const LINKS: LinkItem[] = [
   { href: '/objectifs', label: 'Objectifs', hint: 'Budgets, épargne, récurrences', Icon: Target, pro: true },
@@ -30,8 +32,11 @@ const LINKS: LinkItem[] = [
   { href: '/about', label: 'À propos', hint: 'Mentions légales, Mes Poches', Icon: Info },
 ];
 
+const WHATS_NEW: LinkItem = { href: '#whats-new', label: 'Nouveautés', hint: 'Visite guidée des dernières fonctionnalités', Icon: Sparkles };
+
 export default function PlusScreen() {
   const { isPremium, user } = useAuth();
+  const { startTour } = useWhatsNew();
   const visible = LINKS.filter((item) => item.href !== '/capture-setup' || isMoneyCaptureEnabled());
   const settingsAt = visible.findIndex((item) => item.href === '/settings');
   const insertAt = settingsAt >= 0 ? settingsAt + 1 : visible.length;
@@ -41,6 +46,7 @@ export default function PlusScreen() {
       ? [{ href: '/admin-messages', label: 'Messages reçus', hint: 'Retours des utilisateurs', Icon: Inbox }]
       : []),
     ...visible.slice(insertAt),
+    { ...WHATS_NEW, action: () => startTour() },
   ];
   return (
     <Screen scroll>
@@ -49,8 +55,9 @@ export default function PlusScreen() {
         <PressScale
           key={item.href}
           onPress={() => {
-            track('click', { screen: 'plus', props: { element: item.href.replace(/^\//, '') } });
-            router.push(item.href as never);
+            track('click', { screen: 'plus', props: { element: item.href.replace(/^[/#]/, '') } });
+            if (item.action) item.action();
+            else router.push(item.href as never);
           }}
           accessibilityRole="button"
           accessibilityLabel={`${item.label}, ${item.hint}`}

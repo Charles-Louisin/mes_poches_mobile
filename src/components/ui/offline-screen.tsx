@@ -64,11 +64,10 @@ export function OfflineScreen() {
           Pas de connexion
         </Text>
         <Text style={styles.copy}>
-          Mes Poches a besoin d’Internet pour afficher et enregistrer vos transactions. Vérifiez vos données mobiles ou
-          votre Wi-Fi.
+          Vérifiez vos données mobiles ou votre Wi-Fi, puis réessayez.
         </Text>
         <Text style={styles.note}>
-          Les SMS mobile money reçus pendant la coupure sont gardés et seront ajoutés automatiquement au retour du réseau.
+          Les notifications Mobile Money reçues pendant la coupure sont gardées et ajoutées au retour du réseau.
         </Text>
       </View>
       <Button label="Réessayer" loadingLabel="Vérification…" onPress={() => void retry()} loading={checking} />

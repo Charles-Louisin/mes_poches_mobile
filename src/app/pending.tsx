@@ -2,9 +2,9 @@ import { walletOption, categoryOption } from '@/lib/plan-options';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react-native';
 import { pendingTransactionApi, walletApi, categoryApi, sanitizeLineItems, type PendingTransaction } from '@/lib/api';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { defaultOpenDayKey, formatDateTime, groupTransactionsByDate, idOf, nameOf } from '@/lib/utils';
 import { invalidateFinance } from '@/lib/query';
 import { getErrorMessage } from '@/lib/errors';
@@ -317,7 +317,19 @@ export default function PendingScreen() {
   return (
     <Screen scroll onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>
       <ScreenHeader title="À valider" back />
-      <Text style={styles.lede}>Les détections SMS, tickets et dictées arrivent ici. Vous validez — ou vous ignorez.</Text>
+      {(q.data?.items ?? []).length > 1 || (q.data?.items ?? []).some((i) => (i.ai_items?.length ?? 0) > 1) ? (
+        <PressScale
+          onPress={() => router.push('/pending-arrange' as never)}
+          style={styles.arrange}
+          accessibilityRole="button"
+          accessibilityHint="Déplacer des lignes entre les fiches, reclasser, puis tout valider">
+          <View style={{ flex: 1 }}>
+            <Text style={styles.arrangeT}>Trier et tout valider</Text>
+            <Text style={styles.arrangeH}>Déplacez des lignes d’une fiche à l’autre, reclassez, validez en une fois.</Text>
+          </View>
+          <ChevronRight color={color.white} size={20} />
+        </PressScale>
+      ) : null}
       {q.isLoading && !q.data ? <PageSkeleton variant="pending" rows={3} /> : null}
       {groups.map((g) => {
         const dayOpen = openDays.has(g.dayKey);
@@ -554,7 +566,17 @@ export default function PendingScreen() {
 }
 
 const styles = StyleSheet.create({
-  lede: { fontFamily: font.sans, color: color.textSecondary, marginBottom: 22, lineHeight: 22 },
+  arrange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: radius.card,
+    backgroundColor: color.primary,
+    marginBottom: 18,
+  },
+  arrangeT: { fontFamily: font.sansSemi, fontSize: 16, color: color.white },
+  arrangeH: { fontFamily: font.sans, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   dayCard: {
     backgroundColor: color.surface,
     borderRadius: radius.card,

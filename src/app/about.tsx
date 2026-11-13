@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -6,10 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { getPrivacyUrl, getWebUrl } from '@/lib/api-config';
+import { effectiveVersion, installedVersion } from '@/lib/app-version';
 import { color, type as font } from '@/theme/tokens';
 
 export default function AboutScreen() {
   const web = getWebUrl();
+  const [version, setVersion] = useState(installedVersion());
+  useEffect(() => {
+    void effectiveVersion().then(setVersion);
+  }, []);
   return (
     <Screen scroll>
       <ScreenHeader title="À propos" back />
@@ -21,9 +27,9 @@ export default function AboutScreen() {
       </Animated.Text>
       <Text style={styles.rule} />
       <Text style={styles.body}>
-        L’app pour suivre cash et Mobile Money. Vos soldes, catégories et transactions restent liés à votre compte.
+        Suivez votre cash et votre Mobile Money, poche par poche.
       </Text>
-      <Text style={styles.body}>Version mobile 1.0</Text>
+      <Text style={styles.body}>Version {version}</Text>
       <View style={{ gap: 12, marginTop: 12 }}>
         <Button
           label="Mentions légales"

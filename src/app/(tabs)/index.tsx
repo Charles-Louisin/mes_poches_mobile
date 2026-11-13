@@ -1,21 +1,12 @@
-import { PlanUsage } from '@/components/subscription/plan-usage';
+import { QuotaTiles } from '@/components/subscription/quota-tiles';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Bell, ScanLine, Settings, X } from 'lucide-react-native';
-import {
-  analyticsApi,
-  type MeUser,
-  budgetApi,
-  categoryApi,
-  pendingTransactionApi,
-  savingsGoalApi,
-  transactionApi,
-  walletApi,
-} from '@/lib/api';
+import { fetchHomeData } from '@/lib/home-data';
 import { STORAGE_KEYS, getString, setString } from '@/lib/storage';
-import { formatDate, sortTransactionsByDateDesc } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth';
 import { useCurrency } from '@/contexts/currency';
 import { useReceiptScan } from '@/contexts/receipt-scan';
@@ -37,17 +28,6 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageSkeleton } from '@/components/ui/page-skeleton';
 import { PocketArt, ReceiptArt } from '@/components/illustrations';
 import { color, radius, space, type as font, typeScale } from '@/theme/tokens';
-
-/** Scans et notes vocales du mois, toujours visibles sur l'accueil (avant de toucher Scanner ou +). */
-function QuotaHints({ quotas }: { quotas?: MeUser['quotas'] }) {
-  if (!quotas?.scans && !quotas?.voice) return null;
-  return (
-    <View style={styles.quotaBox}>
-      <PlanUsage kind="scans" />
-      <PlanUsage kind="voice" />
-    </View>
-  );
-}
 
 export default function HomeScreen() {
   const { user, isPremium, isOnTrial } = useAuth();
@@ -78,31 +58,7 @@ export default function HomeScreen() {
 
   const home = useQuery({
     queryKey: ['home', isPremium],
-    queryFn: async () => {
-      const now = new Date();
-      const [wallets, balance, txs, stats, pending, budgets, goals] = await Promise.all([
-        walletApi.getAll().catch(() => []),
-        walletApi.getTotalBalance().catch(() => ({ total: 0, totalSavings: 0, wallets: [] })),
-        transactionApi.getAll({ limit: 200 }).catch(() => []),
-        analyticsApi.getCurrentMonth().catch(() => null),
-        pendingTransactionApi.getCount().catch(() => ({ count: 0 })),
-        isPremium
-          ? budgetApi.getAll(now.getFullYear(), now.getMonth() + 1).catch(() => [])
-          : Promise.resolve([]),
-        isPremium ? savingsGoalApi.getAll().catch(() => []) : Promise.resolve([]),
-        categoryApi.getAll().catch(() => []),
-      ]);
-      return {
-        wallets,
-        total: balance.total,
-        savings: balance.totalSavings ?? 0,
-        recent: sortTransactionsByDateDesc(txs).slice(0, 5),
-        stats,
-        pending: pending.count,
-        budgets: Array.isArray(budgets) ? budgets : [],
-        goals: Array.isArray(goals) ? goals : [],
-      };
-    },
+    queryFn: () => fetchHomeData(isPremium),
   });
 
   const data = home.data;
@@ -147,6 +103,7 @@ export default function HomeScreen() {
           holder={user?.name || greeting}
           planLabel={isOnTrial ? 'essai Pro' : isPremium ? user?.tierLabel || 'Premium' : 'gratuit'}
           admin={user?.role === 'admin'}
+          loading={!data}
         />
       </Enter>
 
@@ -188,7 +145,7 @@ export default function HomeScreen() {
         ]}
       />
 
-      <QuotaHints quotas={user?.quotas} />
+      <QuotaTiles quotas={user?.quotas} />
       {isOnTrial && !hideTrial && !tutorialOn ? (
         <View style={[styles.trial, trialDays <= 7 && styles.trialUrgent]}>
           <PressScale onPress={() => router.push('/subscription')} style={{ flex: 1 }}>
@@ -248,7 +205,7 @@ export default function HomeScreen() {
         <EmptyState
           illustration={<PocketArt size={180} />}
           title="Aucune poche"
-          description="Ouvrez une poche pour Cash, Orange ou MTN. Le solde se calcule tout seul."
+          description="Une poche par compte : Cash, Orange Money, MTN…"
           cta="Créer une poche"
           onPress={() => router.push('/wallets/new')}
         />
@@ -289,8 +246,14 @@ export default function HomeScreen() {
                     {formatAmount(current)} / {formatAmount(g.target_amount)}
                   </Text>
                 </View>
-                <InkBar value={pct} tone="primary" delay={80 + i * 80} />
-                {g.deadline ? <Text style={styles.limit}>Limite : {formatDate(g.deadline)}</Text> : null}
+                <InkBar value={pct} tone={g.achievable ? 'success' : 'primary'} delay={80 + i * 80} />
+                {g.status_message ? (
+                  <Text style={[styles.limit, g.tone === 'good' && { color: '#067647' }, g.tone === 'warn' && { color: color.danger }]}>
+                    {g.status_message}
+                  </Text>
+                ) : g.deadline ? (
+                  <Text style={styles.limit}>Limite : {formatDate(g.deadline)}</Text>
+                ) : null}
               </Card>
             );
           })}
@@ -328,7 +291,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  quotaBox: { gap: 8, marginBottom: 14 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 },
   hello: { ...typeScale.h2, color: color.text, marginTop: 1 },

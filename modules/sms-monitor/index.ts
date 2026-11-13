@@ -19,4 +19,6 @@ export {
   getNativeInboxCursor,
   touchNativeInboxHeartbeat,
   subscribePendingDuplicate,
+  trackBatchJob,
+  stopBatchJob,
 } from './src';

@@ -8,11 +8,11 @@ export default function SubscriptionLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: color.background },
         animation: 'slide_from_right',
-        animationDuration: 560,
+        animationDuration: 320,
       }}>
       <Stack.Screen name="index" options={{ animation: 'none' }} />
       <Stack.Screen name="payment" />
-      <Stack.Screen name="success" options={{ animation: 'fade', animationDuration: 480 }} />
+      <Stack.Screen name="success" options={{ animation: 'fade', animationDuration: 240 }} />
     </Stack>
   );
 }

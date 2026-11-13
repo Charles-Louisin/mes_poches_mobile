@@ -202,8 +202,10 @@ export default function WalletDetailScreen() {
               item={p}
               formatAmount={formatAmount}
               cancelling={cancellingId === p._id}
+              walletBalance={wallet.current_balance}
               onEdit={() => setEditingPlan(p)}
               onCancel={() => void cancelPlan(p._id)}
+              onSettled={() => void q.refetch()}
             />
           ))}
         </View>

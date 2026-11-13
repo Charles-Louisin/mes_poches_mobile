@@ -6,8 +6,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import expo.modules.smsmonitor.R;
@@ -21,6 +19,8 @@ public final class MesPochesNotifier {
     private static final int ID_READY = 8002;
     private static final int ID_REMINDER = 8003;
     private static final int ID_INBOX = 8004;
+    private static final int ID_BATCH = 8005;
+    private static final String BATCH_CHANNEL = "mes_poches_batch";
 
     private MesPochesNotifier() {}
 
@@ -54,8 +54,6 @@ public final class MesPochesNotifier {
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent);
-        Bitmap mark = appMark(ctx);
-        if (mark != null) builder.setLargeIcon(mark);
         nm.notify(ID_READY, builder.build());
     }
 
@@ -91,8 +89,6 @@ public final class MesPochesNotifier {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent);
-        Bitmap mark = appMark(ctx);
-        if (mark != null) builder.setLargeIcon(mark);
         notificationManager(ctx).notify(ID_REMINDER, builder.build());
     }
 
@@ -121,9 +117,43 @@ public final class MesPochesNotifier {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent);
-        Bitmap mark = appMark(ctx);
-        if (mark != null) builder.setLargeIcon(mark);
         notificationManager(ctx).notify(ID_INBOX, builder.build());
+    }
+
+    /** Barre de progression de l'enregistrement en arrière-plan (silencieuse, non effaçable tant qu'elle tourne). */
+    public static void showBatchProgress(Context ctx, int percent, int done, int total) {
+        ensureBatchChannel(ctx);
+        Intent intent = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent pi = intent == null ? null : PendingIntent.getActivity(ctx, 5, intent, flags);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, BATCH_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_mp)
+            .setContentTitle("Enregistrement des transactions")
+            .setContentText(done + " sur " + total + " · " + percent + " %")
+            .setProgress(100, Math.max(0, Math.min(100, percent)), false)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW);
+        if (pi != null) builder.setContentIntent(pi);
+        notificationManager(ctx).notify(ID_BATCH, builder.build());
+    }
+
+    public static void cancelBatch(Context ctx) {
+        notificationManager(ctx).cancel(ID_BATCH);
+    }
+
+    private static void ensureBatchChannel(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationChannel channel = new NotificationChannel(
+            BATCH_CHANNEL,
+            "Enregistrements en cours",
+            NotificationManager.IMPORTANCE_LOW
+        );
+        channel.setDescription("Progression des enregistrements faits en arrière-plan");
+        channel.setShowBadge(false);
+        notificationManager(ctx).createNotificationChannel(channel);
     }
 
     public static void cancelProcessing(Context ctx) {
@@ -132,14 +162,6 @@ public final class MesPochesNotifier {
 
     private static NotificationManager notificationManager(Context ctx) {
         return (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-    }
-
-    static Bitmap appMark(Context ctx) {
-        Bitmap fromModule = BitmapFactory.decodeResource(ctx.getResources(), R.drawable.ic_notif_mark);
-        if (fromModule != null) return fromModule;
-        int appMark = ctx.getResources().getIdentifier("ic_launcher", "mipmap", ctx.getPackageName());
-        if (appMark != 0) return BitmapFactory.decodeResource(ctx.getResources(), appMark);
-        return null;
     }
 
     private static void ensureChannel(Context ctx) {

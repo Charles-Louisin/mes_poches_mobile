@@ -21,8 +21,8 @@ import Animated, {
 import { useKeyboardBottomInset } from '@/hooks/use-keyboard-bottom-inset';
 import { color, radius, type as font } from '@/theme/tokens';
 
-const OPEN_SPRING = { damping: 22, stiffness: 118, mass: 1.15 };
-const CLOSE = { duration: 420, easing: Easing.out(Easing.cubic) };
+const OPEN_SPRING = { duration: 340, dampingRatio: 0.88 };
+const CLOSE = { duration: 240, easing: Easing.bezier(0.32, 0.72, 0, 1) };
 const DISMISS_DISTANCE = 96;
 const DISMISS_VELOCITY = 780;
 const WINDOW_H = Dimensions.get('window').height;

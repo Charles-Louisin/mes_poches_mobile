@@ -31,8 +31,12 @@ import { syncSmsMonitorToken } from '@/lib/sms-monitor';
 import { STORAGE_KEYS, getJson, getString, remove, setJson, setString } from '@/lib/storage';
 import { isOnTrial, isPremiumUser } from '@/lib/subscription';
 
+/** Étapes réelles du démarrage, affichées par l'écran de chargement. */
+export type BootStage = 'storage' | 'account' | 'done';
+
 type AuthContextValue = {
   ready: boolean;
+  bootStage: BootStage;
   token?: string;
   user: MeUser | null;
   onboardingSeen: boolean;
@@ -61,6 +65,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [bootStage, setBootStage] = useState<BootStage>('storage');
   const [token, setToken] = useState<string | undefined>();
   const [user, setUser] = useState<MeUser | null>(null);
   const [onboardingSeen, setOnboardingSeen] = useState(false);
@@ -84,26 +89,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCaptureSetupSeen(capture === 'true');
       setPendingEmailState(pending);
       if (storedToken) {
+        setBootStage('account');
         await syncSmsMonitorToken(storedToken);
         void import('@/lib/daily-reminder').then((m) => m.ensureDailyReminder());
-        try {
-          const me = await authApi.me();
-          if (!cancelled) {
-            setUser(me);
-            await setJson(STORAGE_KEYS.user, me);
-          }
-        } catch (err) {
-          if (err instanceof ApiError && (err.status === 401 || err.code === 'SESSION_REVOKED')) {
-            await syncSmsMonitorToken(undefined);
-            await revokeSession('expired');
+        const checkAccount = (async () => {
+          try {
+            const me = await authApi.me();
             if (!cancelled) {
-              setToken(undefined);
-              setUser(null);
+              setUser(me);
+              await setJson(STORAGE_KEYS.user, me);
+            }
+          } catch (err) {
+            if (err instanceof ApiError && (err.status === 401 || err.code === 'SESSION_REVOKED')) {
+              await syncSmsMonitorToken(undefined);
+              await revokeSession('expired');
+              if (!cancelled) {
+                setToken(undefined);
+                setUser(null);
+              }
             }
           }
-        }
+        })();
+        // Profil déjà connu sur l'appareil : on n'attend pas plus de 3 s un réseau lent pour ouvrir l'app.
+        // La vérification continue en arrière-plan (et déconnecte si la session a été révoquée).
+        if (storedUser) await Promise.race([checkAccount, new Promise((r) => setTimeout(r, 3000))]);
+        else await checkAccount;
       }
-      if (!cancelled) setReady(true);
+      if (!cancelled) {
+        setBootStage('done');
+        setReady(true);
+      }
     })();
     return () => {
       cancelled = true;
@@ -279,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       ready,
+      bootStage,
       token,
       user,
       onboardingSeen,
@@ -302,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready,
+      bootStage,
       token,
       user,
       onboardingSeen,

@@ -14,23 +14,35 @@ export function getQueryClient() {
   return queryClient;
 }
 
-export function invalidateFinance() {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['home'] }),
-    queryClient.invalidateQueries({ queryKey: ['wallets'] }),
-    queryClient.invalidateQueries({ queryKey: ['transactions'] }),
-    queryClient.invalidateQueries({ queryKey: ['categories'] }),
-    queryClient.invalidateQueries({ queryKey: ['analytics'] }),
-    queryClient.invalidateQueries({ queryKey: ['pending'] }),
-    queryClient.invalidateQueries({ queryKey: ['me'] }),
-    queryClient.invalidateQueries({ queryKey: ['budgets'] }),
-    queryClient.invalidateQueries({ queryKey: ['goals'] }),
-    queryClient.invalidateQueries({ queryKey: ['recurring'] }),
-    queryClient.invalidateQueries({ queryKey: ['planned'] }),
-    queryClient.invalidateQueries({ queryKey: ['objectifs'] }),
-    queryClient.invalidateQueries({ queryKey: ['wallet'] }),
-    queryClient.invalidateQueries({ queryKey: ['transaction'] }),
-  ]);
+const FINANCE_KEYS = [
+  'home',
+  'wallets',
+  'transactions',
+  'categories',
+  'category',
+  'category-transactions',
+  'analytics',
+  'analytics-month',
+  'pending',
+  'me',
+  'budgets',
+  'goals',
+  'recurring',
+  'planned',
+  'objectifs',
+  'objectifs-history',
+  'wallet',
+  'transaction',
+];
+
+/**
+ * Données financières périmées après une écriture.
+ * Ne bloque pas l’interface : les écrans visibles se rechargent en arrière-plan, les autres au prochain
+ * affichage. (Avant, chaque action attendait le rechargement de tous les écrans ouverts.)
+ */
+export function invalidateFinance(): Promise<void> {
+  for (const key of FINANCE_KEYS) void queryClient.invalidateQueries({ queryKey: [key] });
+  return Promise.resolve();
 }
 
 export function AppQueryProvider({ children }: { children: ReactNode }) {

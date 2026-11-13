@@ -73,7 +73,7 @@ export default function WalletsScreen() {
         <EmptyState
           illustration={<PocketArt size={200} />}
           title="Aucune poche"
-          description="Ouvrez une poche pour Cash, Orange ou MTN. Le solde se calcule tout seul."
+          description="Une poche par compte : Cash, Orange Money, MTN…"
           cta="Créer une poche"
           onPress={() => router.push('/wallets/new')}
         />

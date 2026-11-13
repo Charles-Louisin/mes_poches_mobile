@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Download, ShieldAlert } from 'lucide-react-native';
-import type { ApkUpdate } from '@/lib/app-version';
+import { CheckCircle2, Download, ShieldAlert } from 'lucide-react-native';
+import { markApkDownloadStarted, type ApkUpdate } from '@/lib/app-version';
 import { track } from '@/lib/telemetry';
 import { Button } from '@/components/ui/button';
 import { color, radius, type as font } from '@/theme/tokens';
@@ -10,6 +10,25 @@ import { color, radius, type as font } from '@/theme/tokens';
  * Nouvel APK disponible : 1) ce qui change, 2) le guide Play Protect (même contenu que le site),
  * 3) téléchargement direct (navigateur du téléphone → fichier APK → Installer).
  */
+/** Notes de la release GitHub → liste lisible (puces) ; à défaut, un résumé générique. */
+function noteItems(notes: string | null): { text: string; bullet: boolean }[] {
+  const lines = (notes ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) {
+    return [
+      { text: 'Nouvelles fonctionnalités et améliorations.', bullet: true },
+      { text: 'Corrections et application plus rapide.', bullet: true },
+    ];
+  }
+  return lines.map((l) => {
+    const bullet = /^[-*•]\s+/.test(l);
+    const text = l.replace(/^#+\s*/, '').replace(/^[-*•]\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1');
+    return { text, bullet: bullet || !/^#/.test(l) };
+  });
+}
+
 export function ApkUpdateModal({ update, onLater }: { update: ApkUpdate; onLater: () => void }) {
   const [step, setStep] = useState<'info' | 'guide'>('info');
   // Taille réelle de l'APK annoncé (release GitHub), arrondie ; ~37 Mo par défaut.
@@ -17,6 +36,7 @@ export function ApkUpdateModal({ update, onLater }: { update: ApkUpdate; onLater
 
   const download = async () => {
     track('click', { screen: 'apk-update', props: { element: `download-${update.latestVersion}` } });
+    await markApkDownloadStarted(update.latestVersion);
     await Linking.openURL(update.apkUrl);
   };
 
@@ -34,13 +54,22 @@ export function ApkUpdateModal({ update, onLater }: { update: ApkUpdate; onLater
               <Text style={styles.meta}>
                 Vous avez la {update.currentVersion}.{update.mandatory ? ' Cette mise à jour est nécessaire pour continuer.' : ''}
               </Text>
-              {update.notes ? (
-                <ScrollView style={styles.notesBox}>
-                  <Text style={styles.notes}>{update.notes}</Text>
-                </ScrollView>
-              ) : (
-                <Text style={styles.body}>Nouvelles fonctionnalités, corrections et une application plus légère.</Text>
-              )}
+              <Text style={styles.whatT}>Ce qui vous attend</Text>
+              <ScrollView style={styles.notesBox} contentContainerStyle={{ gap: 10 }}>
+                {noteItems(update.notes).map((item, i) =>
+                  item.bullet ? (
+                    <View key={i} style={styles.noteRow}>
+                      <CheckCircle2 color={color.success} size={16} style={{ marginTop: 2 }} />
+                      <Text style={styles.notes}>{item.text}</Text>
+                    </View>
+                  ) : (
+                    <Text key={i} style={styles.noteHead}>
+                      {item.text}
+                    </Text>
+                  )
+                )}
+              </ScrollView>
+              <Text style={styles.tourHint}>Après l’installation, une visite guidée vous montrera comment utiliser ces nouveautés.</Text>
               <View style={styles.actions}>
                 <Button label="Télécharger la mise à jour" onPress={() => setStep('guide')} />
                 {!update.mandatory ? <Button label="Plus tard" variant="line" onPress={onLater} /> : null}
@@ -99,8 +128,12 @@ const styles = StyleSheet.create({
   meta: { fontFamily: font.sansMed, fontSize: 14, color: color.textSecondary },
   body: { fontFamily: font.sans, fontSize: 15, lineHeight: 22, color: color.textSecondary },
   strong: { fontFamily: font.sansSemi, color: color.text },
-  notesBox: { maxHeight: 180, backgroundColor: color.surface, borderRadius: 12, padding: 12 },
-  notes: { fontFamily: font.sans, fontSize: 14, lineHeight: 21, color: color.text },
+  notesBox: { maxHeight: 240, backgroundColor: color.surface, borderRadius: 12, padding: 14 },
+  notes: { flex: 1, fontFamily: font.sans, fontSize: 14, lineHeight: 21, color: color.text },
+  noteRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  noteHead: { fontFamily: font.sansSemi, fontSize: 14, color: color.text, marginTop: 4 },
+  whatT: { fontFamily: font.sansSemi, fontSize: 15, color: color.text },
+  tourHint: { fontFamily: font.sans, fontSize: 13, lineHeight: 19, color: color.textSecondary },
   step: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   stepN: {
     width: 22,

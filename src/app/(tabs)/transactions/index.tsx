@@ -225,6 +225,7 @@ export default function JournalScreen() {
               cancelling={cancellingId === p._id}
               onEdit={() => setEditing(p)}
               onCancel={() => void cancelPlan(p._id)}
+              onSettled={() => void Promise.all([planned.refetch(), txs.refetch()])}
             />
           ))}
         </View>
@@ -293,7 +294,7 @@ export default function JournalScreen() {
         <EmptyState
           illustration={<ReceiptArt size={200} />}
           title="Aucune transaction"
-          description="Ajoutez une dépense ou un revenu. Le solde de vos poches se met à jour tout seul."
+          description="Ajoutez une dépense ou un revenu : le solde de la poche est mis à jour."
           cta="Ajouter une transaction"
           onPress={() => router.push('/transactions/new')}
         />

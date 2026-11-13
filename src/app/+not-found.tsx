@@ -13,7 +13,7 @@ export default function NotFoundScreen() {
         <Text style={styles.code}>404</Text>
         <Text style={styles.title}>Page introuvable</Text>
         <Text style={styles.body}>
-          Cette page n’existe pas, ou le lien est périmé. Rien n’a été perdu : vos poches sont toujours à l’accueil.
+          Cette page n’existe pas ou le lien a expiré.
         </Text>
         <View style={styles.cta}>
           <Button label="Retour à l’accueil" onPress={() => router.replace('/(tabs)')} />

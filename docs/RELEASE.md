@@ -16,6 +16,13 @@
 | APK distribué aux utilisateurs | `production` | `production` | APK |
 | Tests internes | `preview` | `preview` | APK |
 
+## Règle de version (sinon l'app redemande la mise à jour après installation)
+
+Le tag de la release GitHub **doit être identique** à `expo.version` de `app.json` au moment du build
+(ex. build `1.2.0` → release `v1.2.0`). En novembre 2026, la release `v1.1.1` contenait un APK construit en `1.1.0` :
+l'app se croyait toujours en retard. Depuis la 1.2.0, l'app reconnaît aussi une release installée après un
+téléchargement lancé depuis le modal, et ne propose chaque version qu'une seule fois.
+
 ## Nouvel APK (changement natif : SDK, module natif, permissions, `app.json`)
 
 1. Incrémenter `expo.version` dans `app.json` (ex. `1.1.0` → `1.2.0`). Avec `runtimeVersion: appVersion`,

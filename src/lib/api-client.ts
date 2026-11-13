@@ -2,7 +2,16 @@ import { getApiUrl } from './api-config';
 import { getDeviceKey } from './device-key';
 import { ApiError, isNetworkFailure, isTimeoutError, NETWORK_ERROR_MESSAGE, PremiumRequiredError } from './errors';
 import { PREMIUM_REQUIRED_CODE } from './planLimits';
-import { getToken } from './secure-token';
+import { getToken, loadToken } from './secure-token';
+
+/**
+ * Jeton de session : en mémoire, sinon relu dans le stockage.
+ * Au démarrage à froid (ou lien profond), un écran peut appeler l'API avant que la session soit
+ * restaurée : sans cette relecture, l'utilisateur était déconnecté à tort.
+ */
+async function currentToken(): Promise<string | undefined> {
+  return getToken() ?? (await loadToken());
+}
 import { revokeSession } from './session';
 
 export interface ApiResponse<T> {
@@ -123,7 +132,7 @@ export async function fetchAuthRaw(
 }
 
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
+  const token = await currentToken();
   if (!token) {
     void revokeSession('expired');
     throw new ApiError('Session expirée. Reconnectez-vous.', { code: 'SESSION_REVOKED', status: 401 });
@@ -163,7 +172,7 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 }
 
 export async function fetchApiBlob(endpoint: string, options?: RequestInit): Promise<Blob> {
-  const token = getToken();
+  const token = await currentToken();
   if (!token) {
     void revokeSession('expired');
     throw new ApiError('Session expirée. Reconnectez-vous.', { status: 401, code: 'SESSION_REVOKED' });

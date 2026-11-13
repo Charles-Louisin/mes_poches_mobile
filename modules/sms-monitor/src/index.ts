@@ -18,6 +18,8 @@ type SmsMonitorNative = {
   setInboxCursor(lastAt: string): Promise<void>;
   getInboxCursor(): Promise<{ lastAt?: string }>;
   touchInboxHeartbeat(): Promise<void>;
+  trackBatchJob?(jobId: string): Promise<void>;
+  stopBatchJob?(): Promise<void>;
   addListener?(
     event: string,
     listener: (payload: { alreadyValidated?: boolean }) => void
@@ -163,4 +165,21 @@ export async function listOfflineQueue(): Promise<
 export async function flushNativeOfflineQueue(): Promise<void> {
   if (!native?.flushOfflineQueue) return;
   await native.flushOfflineQueue();
+}
+
+/** Affiche la progression d'un enregistrement en lot dans les notifications (Android). */
+export async function trackBatchJob(jobId: string): Promise<void> {
+  try {
+    await native?.trackBatchJob?.(jobId);
+  } catch {
+    /* module absent (web, Expo Go) : la progression reste visible dans l'app */
+  }
+}
+
+export async function stopBatchJob(): Promise<void> {
+  try {
+    await native?.stopBatchJob?.();
+  } catch {
+    /* rien à arrêter */
+  }
 }

@@ -11,6 +11,7 @@ const BULLETS = [
   'Une date future enregistre une dépense prévue : la poche n’est pas débitée tout de suite.',
   'Le jour prévu (UTC), le montant est débité si le solde est suffisant.',
   'Sinon, l’échéance est annulée automatiquement (solde insuffisant).',
+  'Dès que la poche couvre le montant avant l’échéance, vous êtes prévenu et pouvez la régler tout de suite.',
   'Vous pouvez modifier ou annuler avant le jour J. Un rappel email part la veille.',
 ];
 

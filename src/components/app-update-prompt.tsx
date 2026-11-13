@@ -3,7 +3,7 @@ import { ActivityIndicator, AppState, Modal, Platform, Pressable, StyleSheet, Te
 import * as Updates from 'expo-updates';
 import { defaultUpdateMessage, otaUpdatesActive } from '@/lib/app-updates';
 import { getJson, setJson } from '@/lib/storage';
-import { checkApkUpdate, dismissApkUpdate, type ApkUpdate } from '@/lib/app-version';
+import { checkApkUpdate, markApkUpdateSeen, type ApkUpdate } from '@/lib/app-version';
 import { ApkUpdateModal } from '@/components/apk-update-modal';
 import { Button } from '@/components/ui/button';
 import { color, radius, type as font } from '@/theme/tokens';
@@ -16,10 +16,9 @@ import { color, radius, type as font } from '@/theme/tokens';
  *       mais ne l'applique qu'au prochain démarrage à froid : `useUpdates()` le voit tout de suite
  *       (isUpdatePending) et on propose simplement de redémarrer ;
  *     - on revérifie à chaque retour au premier plan (au plus toutes les 15 min), pas seulement au lancement ;
- *     - « Plus tard » n'efface la proposition que 24 h (avant : définitivement pour cette version).
+ *     - « Plus tard » : la proposition ne revient plus pour cette mise à jour.
  */
 const DISMISS_KEY = 'mp_ota_dismissed';
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
 const RECHECK_MS = 15 * 60 * 1000;
 
 type Snooze = { id: string; at: number };
@@ -48,7 +47,11 @@ function useApkCheck() {
   const [apk, setApk] = useState<ApkUpdate | null>(null);
   const run = useCallback(async () => {
     const build = await checkApkUpdate();
-    if (build) setApk(build);
+    if (build) {
+      setApk(build);
+      // Proposée une seule fois par version : la prochaine ouverture ne la remontre pas.
+      if (!build.mandatory) void markApkUpdateSeen(build.latestVersion);
+    }
     return !!build;
   }, []);
   useEffect(() => {
@@ -58,7 +61,6 @@ function useApkCheck() {
     <ApkUpdateModal
       update={apk}
       onLater={() => {
-        void dismissApkUpdate(apk.latestVersion);
         setApk(null);
       }}
     />
@@ -110,7 +112,7 @@ function OtaAndApkPrompt() {
 
   const info = downloadedUpdate ?? availableUpdate;
   const id = updateIdOf(info);
-  const snoozed = snooze && snooze.id === id && Date.now() - snooze.at < SNOOZE_MS;
+  const snoozed = !!snooze && snooze.id === id;
   if (!snoozeLoaded || (!isUpdateAvailable && !isUpdatePending) || snoozed) return null;
 
   const later = async () => {

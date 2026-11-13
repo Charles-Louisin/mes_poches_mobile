@@ -9,6 +9,8 @@ import { QuotaPromptHost } from '@/components/subscription/quota-prompt';
 import { TutorialOverlay } from '@/components/tutorial/tutorial-overlay';
 import { OfflineScreen } from '@/components/ui/offline-screen';
 import { AuthProvider } from '@/contexts/auth';
+import { BatchProgressProvider } from '@/contexts/batch-progress';
+import { WhatsNewProvider } from '@/contexts/whats-new';
 import { ConfirmProvider } from '@/contexts/confirm';
 import { CurrencyProvider } from '@/contexts/currency';
 import { ReceiptScanProvider } from '@/contexts/receipt-scan';
@@ -59,6 +61,8 @@ export default function RootLayout() {
               <ConfirmProvider>
                 <ReceiptScanProvider>
                   <VoiceNoteProvider>
+                  <BatchProgressProvider>
+                  <WhatsNewProvider>
                     <StatusBar style="dark" />
                     <OfflineScreen />
                     <TelemetryListener />
@@ -71,22 +75,22 @@ export default function RootLayout() {
                         headerShown: false,
                         contentStyle: { backgroundColor: color.background },
                         animation: 'slide_from_right',
-                        animationDuration: 560,
+                        animationDuration: 320,
                       }}>
                       <Stack.Screen name="index" options={{ animation: 'none' }} />
-                      <Stack.Screen name="onboarding" options={{ animation: 'fade', animationDuration: 560 }} />
-                      <Stack.Screen name="capture-setup" options={{ animation: 'fade', animationDuration: 480 }} />
-                      <Stack.Screen name="(auth)" options={{ animation: 'fade', animationDuration: 520 }} />
-                      <Stack.Screen name="auth/google" options={{ animation: 'fade', animationDuration: 400 }} />
-                      <Stack.Screen name="(tabs)" options={{ animation: 'fade', animationDuration: 560 }} />
-                      <Stack.Screen name="+not-found" options={{ animation: 'fade', animationDuration: 400 }} />
+                      <Stack.Screen name="onboarding" options={{ animation: 'fade', animationDuration: 320 }} />
+                      <Stack.Screen name="capture-setup" options={{ animation: 'fade', animationDuration: 240 }} />
+                      <Stack.Screen name="(auth)" options={{ animation: 'fade', animationDuration: 340 }} />
+                      <Stack.Screen name="auth/google" options={{ animation: 'fade', animationDuration: 220 }} />
+                      <Stack.Screen name="(tabs)" options={{ animation: 'fade', animationDuration: 320 }} />
+                      <Stack.Screen name="+not-found" options={{ animation: 'fade', animationDuration: 220 }} />
                       <Stack.Screen
                         name="pending"
-                        options={{ animation: 'slide_from_bottom', animationDuration: 520 }}
+                        options={{ animation: 'slide_from_bottom', animationDuration: 340 }}
                       />
                       <Stack.Screen
                         name="subscription"
-                        options={{ animation: 'slide_from_bottom', animationDuration: 520 }}
+                        options={{ animation: 'slide_from_bottom', animationDuration: 340 }}
                       />
                       <Stack.Screen name="objectifs" />
                       <Stack.Screen name="settings" />
@@ -95,8 +99,10 @@ export default function RootLayout() {
                       <Stack.Screen name="feedback" />
                       <Stack.Screen name="admin-messages" />
                       <Stack.Screen name="profile" />
-                      <Stack.Screen name="about" options={{ animation: 'fade', animationDuration: 480 }} />
+                      <Stack.Screen name="about" options={{ animation: 'fade', animationDuration: 240 }} />
                     </Stack>
+                  </WhatsNewProvider>
+                  </BatchProgressProvider>
                   </VoiceNoteProvider>
                 </ReceiptScanProvider>
               </ConfirmProvider>

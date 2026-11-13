@@ -36,6 +36,7 @@ export const walletApi = {
 export const transactionApi = {
   getAll: (filters?: {
     wallet_id?: string;
+    category_id?: string;
     type?: string;
     startDate?: string;
     endDate?: string;
@@ -43,6 +44,7 @@ export const transactionApi = {
   }) => {
     const params = new URLSearchParams();
     if (filters?.wallet_id) params.append('wallet_id', filters.wallet_id);
+    if (filters?.category_id) params.append('category_id', filters.category_id);
     if (filters?.type) params.append('type', filters.type);
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
@@ -91,7 +93,35 @@ export const transactionApi = {
     }),
   delete: (id: string) =>
     fetchApi<{ message?: string }>(`/transactions/${id}`, { method: 'DELETE' }),
+  /** Plusieurs transactions (une par poche) en une validation. Gros lot : traité en arrière-plan. */
+  createBatch: (groups: BatchGroupInput[]) =>
+    fetchApi<BatchJobStatus>('/transactions/batch', {
+      method: 'POST',
+      body: JSON.stringify({ groups }),
+    }),
+  batchStatus: (id: string) => fetchApi<BatchJobStatus>(`/transactions/batch/${id}`),
 };
+
+export interface BatchGroupInput {
+  kind: 'expense' | 'income';
+  wallet_id: string;
+  category_id?: string | null;
+  description?: string;
+  date?: string;
+  line_items: TransactionLineItem[];
+}
+
+export interface BatchJobStatus {
+  /** null : lot court, déjà enregistré dans la réponse. */
+  id: string | null;
+  status: 'running' | 'done';
+  total: number;
+  done: number;
+  failed: number;
+  /** Pourcentage calculé par le serveur sur les lignes réellement enregistrées. */
+  percent: number;
+  errors: { index: number; message: string }[];
+}
 
 // Categories
 export const categoryApi = {
@@ -226,10 +256,23 @@ export interface SavingsGoal {
   deadline?: string | null;
   current_amount?: number;
   progress_percent?: number;
+  remaining?: number;
+  achieved_at?: string | null;
+  month_in?: number;
+  /** Le reste est couvert par vos poches : réalisable maintenant. */
+  achievable?: boolean;
+  /** D'où prendre l'argent : la combinaison de poches la plus simple. */
+  sources?: { wallet_id: string; name: string; amount: number }[];
+  status_message?: string;
+  tone?: 'good' | 'info' | 'warn';
+  /** Conseil IA du début ou de la fin du mois. */
+  tip?: { period: 'start' | 'end'; month: string; text: string } | null;
 }
 
 export const savingsGoalApi = {
-  getAll: () => fetchApi<SavingsGoal[]>('/savings-goals'),
+  getAll: (status?: 'achieved') =>
+    fetchApi<SavingsGoal[]>(`/savings-goals${status ? `?status=${status}` : ''}`),
+  achieve: (id: string) => fetchApi<SavingsGoal>(`/savings-goals/${id}/achieve`, { method: 'POST' }),
   getTotal: () => fetchApi<{ total: number }>('/savings-goals/total'),
   create: (data: {
     title: string;
@@ -307,6 +350,9 @@ export const plannedExpenseApi = {
     }),
   cancel: (id: string) =>
     fetchApi(`/planned-expenses/${id}`, { method: 'DELETE' }),
+  /** Règle la dépense maintenant (la poche couvre déjà le montant). */
+  settle: (id: string) =>
+    fetchApi<{ transactionId: string }>(`/planned-expenses/${id}/settle`, { method: 'POST' }),
 };
 
 // Transactions en attente de validation (SMS, notifications, IA)
@@ -735,6 +781,7 @@ export interface MeUser {
 }
 
 export interface CategoryStat {
+  categoryId?: string | null;
   category: string;
   total: number;
   count: number;

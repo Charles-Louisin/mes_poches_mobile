@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowDownLeft, ArrowUpRight, Eye, EyeOff } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Eye, EyeOff, PiggyBank } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient as SvgGradient, Rect, Stop } from 'react-native-svg';
 import { Amount } from './amount';
 import { PressScale } from './press-scale';
@@ -18,6 +18,7 @@ export function BalanceCard({
   holder,
   planLabel,
   admin,
+  loading = false,
 }: {
   amount: number;
   format: (n: number) => string;
@@ -29,6 +30,8 @@ export function BalanceCard({
   holder?: string;
   planLabel: string;
   admin?: boolean;
+  /** Données pas encore arrivées : emplacements gris au lieu d'un faux « 0 ». */
+  loading?: boolean;
 }) {
   const { maxAmount, isSmall } = useResponsive();
   const name = (holder || '').trim().toUpperCase();
@@ -66,7 +69,9 @@ export function BalanceCard({
         </View>
 
         <Text style={styles.soldeLabel}>Solde disponible</Text>
-        {hidden ? (
+        {loading ? (
+          <View style={styles.skelAmount} accessibilityLabel="Solde en cours de chargement" />
+        ) : hidden ? (
           <Text style={[styles.hidden, { fontSize: isSmall ? 32 : maxAmount }]}>••••••</Text>
         ) : (
           <Amount amount={amount} format={format} size={isSmall ? 32 : maxAmount} color={color.white} />
@@ -77,21 +82,16 @@ export function BalanceCard({
             Icon={ArrowDownLeft}
             tone="in"
             label="Entrées"
-            value={hidden ? '•••' : format(income ?? 0)}
+            value={loading ? '…' : hidden ? '•••' : format(income ?? 0)}
           />
           <Flow
             Icon={ArrowUpRight}
             tone="out"
             label="Sorties"
-            value={hidden ? '•••' : format(expense ?? 0)}
+            value={loading ? '…' : hidden ? '•••' : format(expense ?? 0)}
           />
           {savings && savings > 0 ? (
-            <View style={styles.metaCol}>
-              <Text style={styles.metaK}>Épargne</Text>
-              <Text style={styles.metaV} numberOfLines={1}>
-                {hidden ? '•••' : format(savings)}
-              </Text>
-            </View>
+            <Flow Icon={PiggyBank} tone="save" label="Épargne" value={hidden ? '•••' : format(savings)} />
           ) : null}
         </View>
 
@@ -113,12 +113,12 @@ function Flow({
   value,
 }: {
   Icon: typeof ArrowDownLeft;
-  tone: 'in' | 'out';
+  tone: 'in' | 'out' | 'save';
   label: string;
   value: string;
 }) {
-  const bg = tone === 'in' ? 'rgba(18,183,106,0.22)' : 'rgba(240,68,56,0.22)';
-  const fg = tone === 'in' ? '#7DFFB3' : '#FFB4AE';
+  const bg = tone === 'in' ? 'rgba(18,183,106,0.22)' : tone === 'save' ? 'rgba(245,166,35,0.24)' : 'rgba(240,68,56,0.22)';
+  const fg = tone === 'in' ? '#7DFFB3' : tone === 'save' ? '#FFD58A' : '#FFB4AE';
   return (
     <View style={styles.flow}>
       <View style={[styles.flowIcon, { backgroundColor: bg }]}>
@@ -220,13 +220,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.62)',
     marginBottom: 4,
   },
+  skelAmount: { height: 38, width: '58%', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.14)', marginTop: 6, marginBottom: 2 },
   meta: {
     flexDirection: 'row',
-    gap: 10,
+    flexWrap: 'wrap',
+    columnGap: 10,
+    rowGap: 10,
     marginTop: space[16],
   },
   flow: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '45%',
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -238,7 +243,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  metaCol: { flex: 0.85 },
   metaK: {
     fontFamily: font.sans,
     fontSize: 11,

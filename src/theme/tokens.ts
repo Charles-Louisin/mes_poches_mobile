@@ -120,11 +120,17 @@ export const shadow = {
 } as const;
 
 export const motion = {
-  spring: { damping: 22, stiffness: 160, mass: 1 },
-  slow: { damping: 28, stiffness: 90, mass: 1.2 },
-  page: 560,
-  fade: 480,
-  sheetOpen: { damping: 22, stiffness: 118, mass: 1.15 },
-  sheetCloseMs: 420,
-  minLoad: 1600,
+  /** Retour de pression : ressort court, sans rebond perceptible. */
+  spring: { duration: 260, dampingRatio: 0.9 },
+  slow: { duration: 420, dampingRatio: 1 },
+  page: 320,
+  fade: 240,
+  press: 120,
+  /** Panneaux glissants : courbe des feuilles iOS. */
+  sheetOpen: { duration: 340, dampingRatio: 0.88 },
+  sheetCloseMs: 240,
+  /** Écran de démarrage : le temps d'afficher le logo, sans faire attendre. */
+  minLoad: 600,
+  /** Décalage max cumulé des entrées en cascade. */
+  staggerCap: 240,
 } as const;

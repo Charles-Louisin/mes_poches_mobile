@@ -64,6 +64,17 @@ class SmsMonitorModule : Module() {
       FeedbackInboxScheduler.cancel(ctx)
     }
 
+    // Barre de progression d'un enregistrement en lot (lue sur le serveur, continue en arrière-plan).
+    AsyncFunction("trackBatchJob") { jobId: String ->
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      com.mespoches.app.BatchJobTracker.track(ctx, jobId)
+    }
+
+    AsyncFunction("stopBatchJob") {
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      com.mespoches.app.BatchJobTracker.stop(ctx)
+    }
+
     AsyncFunction("scheduleInboxPoll") {
       val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       FeedbackInboxScheduler.scheduleNext(ctx)

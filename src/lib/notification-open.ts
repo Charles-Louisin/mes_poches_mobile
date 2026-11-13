@@ -48,6 +48,8 @@ export function hrefFromNotification(
     return data?.pendingId && /^[a-f0-9]{24}$/i.test(data.pendingId) ? `/pending?id=${data.pendingId}` : '/pending';
   }
   if (type === 'feedback-reply' || data?.screen === 'feedback') return '/feedback';
+  if (type === 'goal-ready' || data?.screen === 'objectifs') return '/objectifs';
+  if (type === 'planned-funded' || type === 'batch-done' || data?.screen === 'transactions') return '/(tabs)/transactions';
   if (type === 'feedback' && data?.userId) return `/admin-messages/${data.userId}`;
 
   const raw = url || '';

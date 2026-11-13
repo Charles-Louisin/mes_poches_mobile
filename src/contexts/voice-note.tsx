@@ -134,7 +134,10 @@ export function VoiceNoteProvider({ children }: { children: ReactNode }) {
         // Compteur de notes vocales à jour (visible avant le prochain clic).
         void refreshMe();
         close();
-        router.push('/pending');
+        const lines = created.reduce((s, t) => s + (t.ai_items?.length ?? 0), 0);
+        if (count > 1 || lines > 1) {
+          router.push(`/pending-arrange?ids=${created.map((t) => t._id).join(',')}` as never);
+        } else router.push('/pending');
       } catch (e) {
         if (controller.signal.aborted || isAbortError(e)) return;
         if (quotaPromptFromError(e)) {

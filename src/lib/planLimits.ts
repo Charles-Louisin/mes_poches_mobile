@@ -36,20 +36,20 @@ export const TIER_DEFS: Record<SubscriptionTier, TierDef> = {
   pro: {
     label: 'Pro',
     priceXaf: 2500,
-    categories: 20,
+    categories: 100,
     wallets: 20,
     scans: 30,
     voice: 30,
-    perks: ['20 catégories et 20 poches', '30 scans et 30 notes vocales / mois', 'Export PDF'],
+    perks: ['100 catégories et 20 poches', '30 scans et 30 notes vocales / mois', 'Export PDF'],
   },
   pro_plus: {
     label: 'Pro+',
     priceXaf: 6000,
-    categories: 50,
+    categories: 200,
     wallets: 50,
     scans: 100,
     voice: 100,
-    perks: ['50 catégories et 50 poches', '100 scans et 100 notes vocales / mois', 'Export PDF, Excel et CSV'],
+    perks: ['200 catégories et 50 poches', '100 scans et 100 notes vocales / mois', 'Export PDF, Excel et CSV'],
   },
   business: {
     label: 'Business',
@@ -61,7 +61,8 @@ export const TIER_DEFS: Record<SubscriptionTier, TierDef> = {
     perks: [
       'Catégories et poches illimitées',
       '500 scans et 500 notes vocales / mois',
-      'Exports et plages de dates',
+      'Exports sur une plage de dates',
+      'Export par catégorie',
     ],
   },
 };

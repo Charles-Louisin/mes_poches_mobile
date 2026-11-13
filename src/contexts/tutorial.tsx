@@ -38,13 +38,13 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'pocket-tab',
     target: 'tab-wallets',
     title: 'On commence par vos poches',
-    body: 'Une poche, c’est un compte réel : cash, Orange Money, MTN, banque. C’est grâce à elles que l’app sait d’où vient l’argent et où il va — sans tout mélanger. Appuyez sur Poches pour en ouvrir une.',
+    body: 'Une poche = un compte réel : cash, Orange Money, MTN, banque. Appuyez sur Poches pour créer la première.',
     mode: 'tap',
   },
   {
     id: 'pocket-page',
     title: 'Voici la page pour ajouter une poche',
-    body: 'Le formulaire est devant vous : nom, image, solde. Le guide s’arrête ici — créez la poche quand vous voulez, ou continuez la visite.',
+    body: 'Indiquez le nom et le solde actuel, puis créez la poche. Vous pouvez aussi continuer la visite et revenir plus tard.',
     mode: 'next',
     cta: 'Continuer',
     route: '/(tabs)/wallets/new',
@@ -60,7 +60,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
   {
     id: 'category-page',
     title: 'Voici la page pour ajouter une catégorie',
-    body: 'Le champ est sur cet écran. Le guide ne remplit pas la catégorie à votre place. Vous pourrez l’enregistrer juste après, ou plus tard.',
+    body: 'Choisissez Sortie ou Entrée, donnez un nom, puis créez la catégorie. Vous pouvez aussi continuer la visite.',
     mode: 'next',
     cta: 'Continuer',
   },
@@ -68,7 +68,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-home',
     target: 'tab-home',
     title: 'L’accueil, votre tableau de bord',
-    body: 'Ici, vous voyez le solde principal, le solde de vos poches, les quatre actions du quotidien — dépense, revenu, scan, virement — et vos transactions récentes.',
+    body: 'Solde total, vos poches, les quatre actions du quotidien (dépense, revenu, scan, virement) et vos dernières transactions.',
     mode: 'next',
     cta: 'On continue',
     route: '/(tabs)',
@@ -77,7 +77,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-transactions',
     target: 'tab-transactions',
     title: 'L’historique de vos mouvements',
-    body: 'Chaque écriture validée arrive ici. Vous pouvez filtrer, ouvrir un détail, et suivre les dépenses prévues. C’est la mémoire de vos comptes — utile pour retrouver un paiement ou corriger une erreur.',
+    body: 'Toutes vos transactions et dépenses prévues. Filtrez par poche, catégorie ou mois ; touchez une ligne pour la corriger.',
     mode: 'next',
     cta: 'On continue',
     route: '/(tabs)/transactions',
@@ -86,7 +86,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-wallets',
     target: 'tab-wallets',
     title: 'Vos poches, une par une',
-    body: 'Cet écran liste vos comptes et leur solde. Ouvrez-en autant que vous avez de sources d’argent : c’est ce qui évite de tout mélanger dans un seul chiffre.',
+    body: 'Vos comptes et leur solde. Créez une poche par source d’argent.',
     mode: 'next',
     cta: 'On continue',
     route: '/(tabs)/wallets',
@@ -95,7 +95,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-analytics',
     target: 'tab-analytics',
     title: 'Comprendre le mois',
-    body: 'Entrées, sorties, écarts, répartition par catégorie : ici vous voyez où va l’argent, pas seulement le solde. Une partie des analyses est réservée à Premium — vous en avez un mois offert.',
+    body: 'Entrées, sorties et répartition par catégorie, mois par mois. Les analyses détaillées font partie des forfaits payants.',
     mode: 'next',
     cta: 'On continue',
     route: '/(tabs)/analytics',
@@ -104,7 +104,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-plus',
     target: 'tab-plus',
     title: 'Le reste de l’app, au même endroit',
-    body: 'Objectifs d’épargne, file « À valider », réglages et export. C’est le menu pour tout ce qui n’est pas le quotidien, mais qui compte.',
+    body: 'Objectifs (budgets, épargne, récurrences), transactions à valider, réglages et export.',
     mode: 'next',
     cta: 'On continue',
     route: '/(tabs)/plus',
@@ -113,7 +113,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
     id: 'tour-feedback',
     target: 'settings-feedback',
     title: 'Un mot pour nous, ici',
-    body: 'Ce bouton « Votre avis », dans Réglages, sert à tout ce qui concerne l’app : un bug, une idée d’amélioration, un avis sur l’usage. Vous écrivez ici — le message nous arrive. C’est le bon endroit dès que quelque chose cloche ou vous manque.',
+    body: 'Un bug, une idée, une question : écrivez-nous ici. Nous répondons dans l’app.',
     mode: 'next',
     cta: 'C’est noté',
     route: '/settings',
@@ -121,7 +121,7 @@ export const TUTORIAL_STEPS: StepMeta[] = [
   {
     id: 'success',
     title: 'Vous êtes prêt',
-    body: 'Vous avez une poche, une catégorie, et vous savez où trouver chaque écran. Désormais, saisissez, scannez ou validez ce que l’app détecte — rien n’est enregistré sans vous. Bienvenue dans Mes Poches.',
+    body: 'Vous avez une poche et une catégorie. Ajoutez votre première dépense avec le bouton + en bas.',
     mode: 'modal',
     cta: 'C’est parti',
   },
@@ -237,8 +237,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       persist('pocket-page');
       router.navigate('/(tabs)/wallets/new');
     }
-    if (step === 'category-tab' && pathname.includes('categories')) {
+    if (step === 'category-tab' && pathname.includes('categories') && !pathname.includes('new')) {
       persist('category-page');
+      router.navigate('/(tabs)/categories/new' as never);
     }
   }, [pathname, persist, step]);
 

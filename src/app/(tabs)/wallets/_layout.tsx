@@ -8,10 +8,10 @@ export default function WalletsStack() {
         headerShown: false,
         contentStyle: { backgroundColor: color.background },
         animation: 'slide_from_right',
-        animationDuration: 560,
+        animationDuration: 320,
       }}>
       <Stack.Screen name="index" options={{ animation: 'none' }} />
-      <Stack.Screen name="new" options={{ animation: 'slide_from_bottom', animationDuration: 520 }} />
+      <Stack.Screen name="new" options={{ animation: 'slide_from_bottom', animationDuration: 340 }} />
       <Stack.Screen name="[id]" />
     </Stack>
   );

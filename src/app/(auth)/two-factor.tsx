@@ -23,6 +23,7 @@ export default function TwoFactorScreen() {
   const [code, setCode] = useState('');
   const [trust, setTrust] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(Number(params.cooldown) || 30);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -59,6 +60,8 @@ export default function TwoFactorScreen() {
   const resend = async () => {
     if (cooldown > 0) return;
     if (!challenge) return expired();
+    if (resending) return;
+    setResending(true);
     try {
       const res = await twoFactorResendRequest(challenge);
       setCooldown(res.cooldownSeconds ?? 30);
@@ -66,6 +69,8 @@ export default function TwoFactorScreen() {
     } catch (err) {
       if (err instanceof ApiError && err.code === 'CHALLENGE_EXPIRED') return expired();
       toast(getErrorMessage(err, 'Envoi impossible'), 'err');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -117,11 +122,12 @@ export default function TwoFactorScreen() {
       />
       <PressScale
         onPress={() => void resend()}
-        disabled={cooldown > 0}
+        disabled={cooldown > 0 || resending}
         accessibilityRole="button"
+        accessibilityState={{ busy: resending }}
         style={styles.resendBtn}>
-        <Text style={[styles.resend, cooldown > 0 && styles.resendOff]}>
-          {cooldown > 0 ? `Renvoyer un code dans ${cooldown} s` : 'Renvoyer un code'}
+        <Text style={[styles.resend, (cooldown > 0 || resending) && styles.resendOff]}>
+          {resending ? 'Envoi du code…' : cooldown > 0 ? `Renvoyer un code dans ${cooldown} s` : 'Renvoyer un code'}
         </Text>
       </PressScale>
     </Screen>

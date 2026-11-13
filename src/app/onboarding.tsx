@@ -18,25 +18,25 @@ const PAGES = [
     key: 'balance',
     Art: CoinsArt,
     title: 'Vos poches, un seul regard',
-    body: 'Cash, Orange Money, MTN, banque : chaque poche a son solde. Vous voyez ce qu’il reste vraiment, sans tout mélanger dans la tête.',
+    body: 'Cash, Orange Money, MTN, banque : chaque poche a son propre solde, mis à jour à chaque mouvement.',
   },
   {
     key: 'capture',
     Art: WriteArt,
     title: 'Saisir, scanner ou valider',
-    body: 'Une écriture à la main, un ticket, un SMS Mobile Money : l’app vous propose, vous confirmez. Rien n’est enregistré sans votre accord — c’est vous qui gardez le contrôle.',
+    body: 'À la main, en photo d’un ticket ou depuis une notification Mobile Money : l’app prépare, vous validez.',
   },
   {
     key: 'insights',
     Art: ChartArt,
     title: 'Comprendre vos mois',
-    body: 'Entrées, sorties, catégories : une lecture claire pour décider, pas un tableau à décortiquer. Vous voyez où va l’argent, pas seulement le solde.',
+    body: 'Entrées, sorties et catégories du mois, comparées au mois précédent : vous voyez où part l’argent.',
   },
   {
     key: 'premium',
     Art: GiftArt,
     title: 'Un mois Premium offert',
-    body: 'Dès l’inscription, l’essai est inclus pour tester scan, dictée et analyses. Ensuite, vous gardez Premium — ou vous restez sur le plan gratuit, sans surprise.',
+    body: 'Scan, dictée et analyses sont inclus pendant un mois. Ensuite, vous choisissez un forfait ou restez en gratuit.',
   },
 ] as const;
 

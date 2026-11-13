@@ -1,3 +1,4 @@
+import { useResponsive } from '@/hooks/use-responsive';
 import { type ReactNode, type RefObject } from 'react';
 import {
   RefreshControl,
@@ -39,8 +40,10 @@ export function Screen({
   keyboardAware?: boolean;
 }) {
   const keyboardInset = useKeyboardBottomInset();
+  const { pad } = useResponsive();
+  const padStyle = { paddingHorizontal: pad, paddingTop: 8 };
   const body = enter ? (
-    <Animated.View entering={FadeIn.duration(480)} style={scroll ? undefined : styles.flex}>
+    <Animated.View entering={FadeIn.duration(220)} style={scroll ? undefined : styles.flex}>
       {children}
     </Animated.View>
   ) : (
@@ -51,7 +54,7 @@ export function Screen({
     <ScrollView
       ref={scrollRef}
       style={styles.flex}
-      contentContainerStyle={[padded && styles.pad, { paddingBottom: 48, flexGrow: 1 }]}
+      contentContainerStyle={[padded && padStyle, { paddingBottom: 48, flexGrow: 1 }]}
       keyboardShouldPersistTaps="always"
       keyboardDismissMode="none"
       showsVerticalScrollIndicator={false}
@@ -63,7 +66,7 @@ export function Screen({
       {body}
     </ScrollView>
   ) : (
-    <View style={[styles.flex, padded && styles.pad]}>{body}</View>
+    <View style={[styles.flex, padded && padStyle]}>{body}</View>
   );
 
   return (

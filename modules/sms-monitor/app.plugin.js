@@ -3,6 +3,7 @@ const path = require('path');
 const {
   AndroidConfig,
   withAndroidManifest,
+  withMainActivity,
   withMainApplication,
   withDangerousMod,
 } = require('expo/config-plugins');
@@ -291,8 +292,58 @@ function withAppProguard(config) {
   ]);
 }
 
+/**
+ * Taille du texte système plafonnée à ×1,15 dans l'app : sur les petits écrans réglés en « grande police »,
+ * l'interface ne paraît plus zoomée et les textes ne sont plus coupés. Le texte reste agrandi, juste moins.
+ */
+const MAX_FONT_SCALE = '1.15f';
+
+const KT_FONT_CAP = `
+  private fun capFontScale() {
+    val configuration = resources.configuration
+    if (configuration.fontScale > ${MAX_FONT_SCALE}) {
+      configuration.fontScale = ${MAX_FONT_SCALE}
+      val metrics = resources.displayMetrics
+      @Suppress("DEPRECATION")
+      metrics.scaledDensity = configuration.fontScale * metrics.density
+      @Suppress("DEPRECATION")
+      resources.updateConfiguration(configuration, metrics)
+    }
+  }
+`;
+
+const JAVA_FONT_CAP = `
+  private void capFontScale() {
+    android.content.res.Configuration configuration = getResources().getConfiguration();
+    if (configuration.fontScale > ${MAX_FONT_SCALE}) {
+      configuration.fontScale = ${MAX_FONT_SCALE};
+      android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+      metrics.scaledDensity = configuration.fontScale * metrics.density;
+      getResources().updateConfiguration(configuration, metrics);
+    }
+  }
+`;
+
+function withFontScaleCap(config) {
+  return withMainActivity(config, (mod) => {
+    let src = mod.modResults.contents;
+    if (src.includes('capFontScale')) return mod;
+    const isJava = mod.modResults.language === 'java';
+    // Avant super.onCreate : React Native lit l'échelle du texte à l'initialisation de la vue.
+    src = src.replace(/super\.onCreate\(([^)]*)\)/, (m) => `capFontScale()${isJava ? ';' : ''}\n    ${m}`);
+    src = AndroidConfig.CodeMod.appendContentsInsideDeclarationBlock(
+      src,
+      'class MainActivity',
+      isJava ? JAVA_FONT_CAP : KT_FONT_CAP
+    );
+    mod.modResults.contents = src;
+    return mod;
+  });
+}
+
 function withSmsMonitor(config) {
   const capture = isCaptureBuild();
+  config = withFontScaleCap(config);
   config = AndroidConfig.Permissions.withPermissions(config, BASE_PERMISSIONS);
   config = withListenerManifest(config);
   if (capture) {
